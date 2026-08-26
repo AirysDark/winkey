@@ -13,6 +13,25 @@ namespace WinKey;
 public partial class MainWindow : Window
 {
     private static readonly JsonSerializerOptions JsonOptions = new() { WriteIndented = true };
+
+    private static readonly string[] DriverInstallers =
+    [
+        "HP Privacy Settings.exe", "HP Power Manager.exe", "HP MAC Address Manager.exe",
+        "System Default Settings.exe", "HP Connection Optimizer.exe",
+        "Realtek PCIe Media Card Reader Driver.exe", "Intel Bluetooth Driver.exe",
+        "Intel WLAN Driver.exe", "HP Hotkey Support - UWP.exe",
+        "Synaptics (Validity) Fingerprint Sensor Driver.exe", "HP Universal Camera Driver.exe",
+        "Synaptics Mouse Driver.exe", "Intel Video Driver and Control Panel.exe",
+        "Intel Chipset Installation Utility and Driver.exe", "Intel Management Engine Driver.exe",
+        "Intel Serial IO Driver.exe", "Intel Dynamic Platform and Thermal Framework Driver.exe",
+        "Conexant HD Audio Driver - Coffee Lake.exe", "HP USB-C Dock G5 - Firmware.exe",
+        "HP USB-C Dock G5 - Audio Driver.exe", "HP Elite USB-C Docking Station Driver.exe",
+        "HP USB-C Mini Dock - Driver Pack.exe", "HP USB-C Universal Docking Station Driver.exe",
+        "HP USB 3.0 Port Replicator and USB Travel Dock Driver.exe",
+        "Remote HP PC Hardware Diagnostics UEFI.exe", "HP Windows Hardware Diagnostics.exe",
+        "HP PC Hardware Diagnostics UEFI.exe", "HP Firmware Pack (Q85).exe"
+    ];
+
     private ComputerReport? _report;
 
     public MainWindow()
@@ -80,25 +99,15 @@ public partial class MainWindow : Window
             string oemKey = ProductKeyService.GetOemProductKey();
             var choiceDialog = new KeyBackupChoiceWindow(installedResult, oemKey) { Owner = this };
             if (choiceDialog.ShowDialog() != true || choiceDialog.SelectedChoice == KeyBackupChoiceWindow.KeyChoice.None) return;
-
             string key = choiceDialog.SelectedKey.Trim();
             if (!ProductKeyDecoder.IsProductKey(key))
             {
                 MessageBox.Show("The selected key is not a valid 25-character product key.", "No Product Key Found", MessageBoxButton.OK, MessageBoxImage.Warning);
                 return;
             }
-
             string keyType = choiceDialog.SelectedChoice == KeyBackupChoiceWindow.KeyChoice.Installed ? "Installed" : "OEM-UEFI";
-            var dialog = new SaveFileDialog
-            {
-                Title = $"Save {keyType} Windows Product Key Backup",
-                Filter = "Windows key backup (*.txt)|*.txt|All files (*.*)|*.*",
-                FileName = $"WindowsKey-{keyType}-{DateTime.Now:yyyyMMdd-HHmmss}.txt",
-                DefaultExt = ".txt",
-                AddExtension = true
-            };
+            var dialog = new SaveFileDialog { Title = $"Save {keyType} Windows Product Key Backup", Filter = "Windows key backup (*.txt)|*.txt|All files (*.*)|*.*", FileName = $"WindowsKey-{keyType}-{DateTime.Now:yyyyMMdd-HHmmss}.txt", DefaultExt = ".txt", AddExtension = true };
             if (dialog.ShowDialog() != true) return;
-
             File.WriteAllText(dialog.FileName, key, new UTF8Encoding(false));
             MessageBox.Show($"Backup created successfully.\n\nSelected source: {keyType}\nExact key written to file:\n{key}", "Backup Complete", MessageBoxButton.OK, MessageBoxImage.Information);
         }
@@ -110,53 +119,19 @@ public partial class MainWindow : Window
         try
         {
             var choiceDialog = new KeyRestoreChoiceWindow { Owner = this };
-            if (choiceDialog.ShowDialog() != true || choiceDialog.SelectedChoice == KeyRestoreChoiceWindow.KeyChoice.None)
-            {
-                ActivationStatusText.Text = "Restore cancelled.";
-                return;
-            }
-
+            if (choiceDialog.ShowDialog() != true || choiceDialog.SelectedChoice == KeyRestoreChoiceWindow.KeyChoice.None) { ActivationStatusText.Text = "Restore cancelled."; return; }
             string keyType = choiceDialog.SelectedChoice == KeyRestoreChoiceWindow.KeyChoice.Installed ? "Installed" : "OEM/UEFI";
-            string expectedFileHint = choiceDialog.SelectedChoice == KeyRestoreChoiceWindow.KeyChoice.Installed
-                ? "WindowsKey-Installed"
-                : "WindowsKey-OEM-UEFI";
-
-            var dialog = new OpenFileDialog
-            {
-                Title = $"Select {keyType} Windows Product Key Backup",
-                Filter = "Windows key backup (*.txt)|*.txt|All files (*.*)|*.*",
-                CheckFileExists = true,
-                Multiselect = false
-            };
-
-            if (dialog.ShowDialog() != true)
-            {
-                ActivationStatusText.Text = "Restore cancelled.";
-                return;
-            }
-
+            string expectedFileHint = choiceDialog.SelectedChoice == KeyRestoreChoiceWindow.KeyChoice.Installed ? "WindowsKey-Installed" : "WindowsKey-OEM-UEFI";
+            var dialog = new OpenFileDialog { Title = $"Select {keyType} Windows Product Key Backup", Filter = "Windows key backup (*.txt)|*.txt|All files (*.*)|*.*", CheckFileExists = true, Multiselect = false };
+            if (dialog.ShowDialog() != true) { ActivationStatusText.Text = "Restore cancelled."; return; }
             string productKey = ExtractProductKey(File.ReadAllText(dialog.FileName, Encoding.UTF8).Trim());
-            if (!ProductKeyDecoder.IsProductKey(productKey))
-                throw new InvalidDataException($"The selected {keyType} backup does not contain a usable Windows product key.");
-
+            if (!ProductKeyDecoder.IsProductKey(productKey)) throw new InvalidDataException($"The selected {keyType} backup does not contain a usable Windows product key.");
             string fileName = Path.GetFileNameWithoutExtension(dialog.FileName);
             if (!fileName.StartsWith(expectedFileHint, StringComparison.OrdinalIgnoreCase))
             {
-                MessageBoxResult mismatch = MessageBox.Show(
-                    $"You selected {keyType}, but this file name does not appear to be a {keyType} backup.\n\nFile: {Path.GetFileName(dialog.FileName)}\n\nRestore it anyway?",
-                    "Backup Type Check",
-                    MessageBoxButton.YesNo,
-                    MessageBoxImage.Warning);
-                if (mismatch != MessageBoxResult.Yes)
-                {
-                    ActivationStatusText.Text = "Restore cancelled.";
-                    return;
-                }
+                if (MessageBox.Show($"You selected {keyType}, but this file name does not appear to be a {keyType} backup.\n\nFile: {Path.GetFileName(dialog.FileName)}\n\nRestore it anyway?", "Backup Type Check", MessageBoxButton.YesNo, MessageBoxImage.Warning) != MessageBoxResult.Yes) { ActivationStatusText.Text = "Restore cancelled."; return; }
             }
-
-            if (MessageBox.Show($"Restore this {keyType} product key?\n\n{productKey}", "Restore & Activate Windows", MessageBoxButton.YesNo, MessageBoxImage.Question) != MessageBoxResult.Yes)
-                return;
-
+            if (MessageBox.Show($"Restore this {keyType} product key?\n\n{productKey}", "Restore & Activate Windows", MessageBoxButton.YesNo, MessageBoxImage.Question) != MessageBoxResult.Yes) return;
             ActivationStatusText.Text = $"Restoring selected {keyType} product key and activating Windows...";
             Cursor = Cursors.Wait;
             int exitCode = await RunRestoreScriptAsync(productKey);
@@ -183,7 +158,57 @@ public partial class MainWindow : Window
         return process.ExitCode;
     }
 
-    private void InstallDrivers_Click(object sender, RoutedEventArgs e) => MessageBox.Show("Driver installation is unchanged in this update.", "Install HP Drivers", MessageBoxButton.OK, MessageBoxImage.Information);
+    private async void InstallDrivers_Click(object sender, RoutedEventArgs e)
+    {
+        string driverFolder = Path.Combine(AppContext.BaseDirectory, "hp-drivers");
+        if (!Directory.Exists(driverFolder))
+        {
+            MessageBox.Show($"The driver folder was not found:\n\n{driverFolder}\n\nCreate an hp-drivers folder next to WinKey.exe and place the HP driver installers inside it.", "WinKey - Driver Folder Not Found", MessageBoxButton.OK, MessageBoxImage.Warning);
+            return;
+        }
+        int foundCount = DriverInstallers.Count(name => File.Exists(Path.Combine(driverFolder, name)));
+        int missingCount = DriverInstallers.Length - foundCount;
+        if (foundCount == 0)
+        {
+            MessageBox.Show("No matching HP driver installers were found in the hp-drivers folder.", "WinKey - No Drivers Found", MessageBoxButton.OK, MessageBoxImage.Warning);
+            return;
+        }
+        if (MessageBox.Show($"WinKey found {foundCount} driver installer(s).\n{missingCount} listed installer(s) are missing and will be skipped.\n\nEach installer will start one at a time. WinKey will wait until the current installer completely exits before starting the next one.\n\nDo you want to begin?", "Install HP Drivers", MessageBoxButton.YesNo, MessageBoxImage.Question) != MessageBoxResult.Yes) return;
+
+        InstallDriversButton.IsEnabled = false;
+        DriverInstallStatus.Text = "Preparing driver installation...";
+        var log = new StringBuilder();
+        log.AppendLine($"HP driver installation started: {DateTime.Now:G}");
+        log.AppendLine($"Driver folder: {driverFolder}");
+        log.AppendLine();
+        try
+        {
+            for (int i = 0; i < DriverInstallers.Length; i++)
+            {
+                string installerName = DriverInstallers[i];
+                string installerPath = Path.Combine(driverFolder, installerName);
+                if (!File.Exists(installerPath)) { log.AppendLine($"SKIPPED - Missing: {installerName}"); continue; }
+                DriverInstallStatus.Text = $"Installing {i + 1}/{DriverInstallers.Length}: {installerName}";
+                log.AppendLine($"STARTING - {installerName}");
+                try
+                {
+                    var startInfo = new ProcessStartInfo { FileName = installerPath, WorkingDirectory = driverFolder, UseShellExecute = true };
+                    using Process? process = Process.Start(startInfo);
+                    if (process == null) { log.AppendLine($"FAILED - Could not start: {installerName}"); continue; }
+                    await process.WaitForExitAsync();
+                    log.AppendLine($"FINISHED - {installerName} (Exit code: {process.ExitCode})");
+                }
+                catch (Exception ex) { log.AppendLine($"FAILED - {installerName}: {ex.Message}"); }
+            }
+            log.AppendLine();
+            log.AppendLine($"Driver installation sequence finished: {DateTime.Now:G}");
+            DriversInfoBox.Text = log + Environment.NewLine + DriversInfoBox.Text;
+            DriverInstallStatus.Text = "Driver installation sequence finished.";
+            MessageBox.Show("The driver installation sequence has finished. Check the Drivers tab for the installation log.", "WinKey - Drivers Finished", MessageBoxButton.OK, MessageBoxImage.Information);
+        }
+        finally { InstallDriversButton.IsEnabled = true; }
+    }
+
     private void CopyAll_Click(object sender, RoutedEventArgs e) { if (_report != null) Clipboard.SetText(_report.FullText); }
     private void ExportTxt_Click(object sender, RoutedEventArgs e) { if (_report == null) return; var dialog = new SaveFileDialog { Filter = "Text report (*.txt)|*.txt", FileName = $"WinKey-{DateTime.Now:yyyyMMdd-HHmmss}.txt" }; if (dialog.ShowDialog() == true) File.WriteAllText(dialog.FileName, _report.FullText, Encoding.UTF8); }
     private void ExportJson_Click(object sender, RoutedEventArgs e) { if (_report == null) return; var dialog = new SaveFileDialog { Filter = "JSON report (*.json)|*.json", FileName = $"WinKey-{DateTime.Now:yyyyMMdd-HHmmss}.json" }; if (dialog.ShowDialog() == true) File.WriteAllText(dialog.FileName, JsonSerializer.Serialize(_report, JsonOptions), Encoding.UTF8); }
