@@ -17,6 +17,15 @@
     <Exec Command="powershell -NoProfile -ExecutionPolicy Bypass -Command &quot;$url='https://raw.githubusercontent.com/AveYo/MediaCreationTool.bat/main/MediaCreationTool.bat'; $out='$(MSBuildProjectDirectory)\MediaCreationTool.bat'; Invoke-WebRequest -Uri $url -OutFile $out -UseBasicParsing&quot;" />
   </Target>
 
+  <Target Name="CopyMediaCreationToolToBuild" AfterTargets="Build" DependsOnTargets="DownloadMediaCreationTool">
+    <MakeDir Directories="$(OutputPath)" />
+    <Copy SourceFiles="$(MSBuildProjectDirectory)\MediaCreationTool.bat" DestinationFolder="$(OutputPath)" SkipUnchangedFiles="true" />
+  </Target>
+
+  <Target Name="CopyMediaCreationToolToPublish" AfterTargets="Publish" DependsOnTargets="DownloadMediaCreationTool">
+    <Copy SourceFiles="$(MSBuildProjectDirectory)\MediaCreationTool.bat" DestinationFolder="$(PublishDir)" SkipUnchangedFiles="true" Condition="'$(PublishDir)' != ''" />
+  </Target>
+
   <ItemGroup>
     <PackageReference Include="System.Management" Version="8.0.0" />
   </ItemGroup>
@@ -31,10 +40,6 @@
       <CopyToPublishDirectory>PreserveNewest</CopyToPublishDirectory>
     </None>
     <None Update="Restore_Windows_Key.ps1">
-      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
-      <CopyToPublishDirectory>PreserveNewest</CopyToPublishDirectory>
-    </None>
-    <None Update="MediaCreationTool.bat">
       <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
       <CopyToPublishDirectory>PreserveNewest</CopyToPublishDirectory>
     </None>
