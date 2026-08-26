@@ -30,8 +30,8 @@
                          FontSize="16"
                          Padding="4"
                          Click="InstalledKeyOption_Click"/>
-            <TextBlock Text="The product key currently installed in Windows."
-                       Foreground="#9FB0C3" Margin="32,2,0,16"/>
+            <TextBlock Text="The full key recoverable from this Windows installation. This key can be viewed and backed up when Windows stores a recoverable DigitalProductId."
+                       Foreground="#9FB0C3" TextWrapping="Wrap" Margin="32,2,0,16"/>
 
             <RadioButton x:Name="OemKeyOption"
                          Content="OEM/UEFI Key"
