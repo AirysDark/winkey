@@ -11,41 +11,35 @@ public partial class KeyBackupChoiceWindow : Window
         Oem
     }
 
-    public KeyChoice SelectedChoice { get; private set; } = KeyChoice.None;
+    public KeyChoice SelectedChoice { get; private set; } = KeyChoice.Installed;
 
-    public KeyBackupChoiceWindow(bool installedKeyAvailable, bool oemKeyAvailable)
+    public KeyBackupChoiceWindow()
     {
         InitializeComponent();
+        InstalledKeyOption.IsEnabled = true;
+        OemKeyOption.IsEnabled = true;
+        InstalledKeyOption.IsChecked = true;
+    }
 
-        InstalledKeyOption.IsEnabled = installedKeyAvailable;
-        OemKeyOption.IsEnabled = oemKeyAvailable;
+    private void InstalledKeyOption_Click(object sender, RoutedEventArgs e)
+    {
+        InstalledKeyOption.IsChecked = true;
+        OemKeyOption.IsChecked = false;
+    }
 
-        if (installedKeyAvailable)
-        {
-            InstalledKeyOption.IsChecked = true;
-        }
-        else if (oemKeyAvailable)
-        {
-            OemKeyOption.IsChecked = true;
-        }
+    private void OemKeyOption_Click(object sender, RoutedEventArgs e)
+    {
+        OemKeyOption.IsChecked = true;
+        InstalledKeyOption.IsChecked = false;
     }
 
     private void Continue_Click(object sender, RoutedEventArgs e)
     {
-        if (OemKeyOption.IsChecked == true && OemKeyOption.IsEnabled)
-        {
-            SelectedChoice = KeyChoice.Oem;
-        }
-        else if (InstalledKeyOption.IsChecked == true && InstalledKeyOption.IsEnabled)
-        {
-            SelectedChoice = KeyChoice.Installed;
-        }
-        else
-        {
-            SelectedChoice = KeyChoice.None;
-        }
+        SelectedChoice = OemKeyOption.IsChecked == true
+            ? KeyChoice.Oem
+            : KeyChoice.Installed;
 
-        DialogResult = SelectedChoice != KeyChoice.None;
+        DialogResult = true;
     }
 
     private void Cancel_Click(object sender, RoutedEventArgs e)
