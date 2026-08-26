@@ -65,19 +65,29 @@ public partial class MainWindow : Window
     {
         try
         {
+            string scriptPath = Path.Combine(AppContext.BaseDirectory, "Check_Activation_Status.cmd");
+
+            if (!File.Exists(scriptPath))
+            {
+                throw new FileNotFoundException("Check_Activation_Status.cmd was not found in the application folder.", scriptPath);
+            }
+
             Process.Start(new ProcessStartInfo
             {
-                FileName = "cmd.exe",
-                Arguments = "/k slmgr /xpr",
-                UseShellExecute = true
+                FileName = Environment.GetEnvironmentVariable("ComSpec") ?? "cmd.exe",
+                Arguments = $"/c \"\"{scriptPath}\"\"",
+                WorkingDirectory = AppContext.BaseDirectory,
+                UseShellExecute = false,
+                CreateNoWindow = true,
+                WindowStyle = ProcessWindowStyle.Hidden
             });
 
-            ActivationStatusText.Text = "Activation status opened in Command Prompt.";
+            ActivationStatusText.Text = "Checking Windows activation status...";
         }
         catch (Exception ex)
         {
             ActivationInfoBox.Text = $"ERROR\r\n\r\n{ex}";
-            ActivationStatusText.Text = "Could not open Command Prompt.";
+            ActivationStatusText.Text = "Could not check activation status.";
         }
     }
 
