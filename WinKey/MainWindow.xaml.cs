@@ -76,27 +76,24 @@ public partial class MainWindow : Window
     {
         try
         {
-            // Decode first, then show every candidate. The backup code never re-decodes
-            // or substitutes a displayed/cached key after the user has made a choice.
-            ProductKeyDecodeResult results = ProductKeyService.DecodeInstalledProductKeyCandidates();
+            // Decode the installed key once with the canonical Windows 8+ decoder.
+            // The dialog receives that exact value and the selected value is written
+            // directly to disk without a second decode or substitution.
+            ProductKeyDecodeResult installedResult = ProductKeyService.DecodeInstalledProductKey();
             string oemKey = ProductKeyService.GetOemProductKey();
-            var choiceDialog = new KeyBackupChoiceWindow(results, oemKey) { Owner = this };
+            var choiceDialog = new KeyBackupChoiceWindow(installedResult, oemKey) { Owner = this };
             if (choiceDialog.ShowDialog() != true || choiceDialog.SelectedChoice == KeyBackupChoiceWindow.KeyChoice.None) return;
 
             string key = choiceDialog.SelectedKey.Trim();
             if (!ProductKeyDecoder.IsProductKey(key))
             {
-                MessageBox.Show("The selected decoder result is not a valid 25-character product key.", "No Product Key Found", MessageBoxButton.OK, MessageBoxImage.Warning);
+                MessageBox.Show("The selected key is not a valid 25-character product key.", "No Product Key Found", MessageBoxButton.OK, MessageBoxImage.Warning);
                 return;
             }
 
-            string keyType = choiceDialog.SelectedChoice switch
-            {
-                KeyBackupChoiceWindow.KeyChoice.Modern => "Modern-Decoder",
-                KeyBackupChoiceWindow.KeyChoice.Legacy => "Legacy-Decoder",
-                KeyBackupChoiceWindow.KeyChoice.Oem => "OEM-UEFI",
-                _ => "WindowsKey"
-            };
+            string keyType = choiceDialog.SelectedChoice == KeyBackupChoiceWindow.KeyChoice.Installed
+                ? "Installed"
+                : "OEM-UEFI";
 
             var dialog = new SaveFileDialog
             {
