@@ -97,17 +97,15 @@ public partial class MainWindow : Window
             }
 
             MessageBox.Show(
-                "WinKey will launch the Microsoft Media Creation Tool in manual mode. You will choose the Windows version, edition, language and architecture. If you choose USB installation media, Microsoft Media Creation Tool will ask you to select the exact USB drive. No USB drive is selected automatically.\n\nThe WinKey launcher also applies the corrected Windows 10 22H2 catalog and Media Creation Tool settings before starting the tool. The command window will stay open and show any error instead of closing immediately.",
+                "WinKey will launch the Microsoft Media Creation Tool in manual mode. You will choose the Windows version, edition, language and architecture. If you choose USB installation media, Microsoft Media Creation Tool will ask you to select the exact USB drive. No USB drive is selected automatically.\n\nThe WinKey launcher also applies the corrected Windows 10 22H2 catalog and Media Creation Tool settings before starting the tool. The command window will stay open and show the real completion status or exit code.",
                 "Create Windows Installation Media",
                 MessageBoxButton.OK,
                 MessageBoxImage.Information);
 
-            string command = $"\"\"{scriptPath}\" def & echo. & echo ================================================================ & echo MediaCreationTool.bat has finished or encountered an error. & echo Review any message above before closing this window. & echo ================================================================ & pause\"";
-
             Process.Start(new ProcessStartInfo
             {
                 FileName = Path.Combine(Environment.SystemDirectory, "cmd.exe"),
-                Arguments = $"/k {command}",
+                Arguments = $"/c call \"{scriptPath}\" def",
                 WorkingDirectory = AppContext.BaseDirectory,
                 UseShellExecute = true
             });
