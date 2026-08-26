@@ -65,24 +65,28 @@ public partial class MainWindow : Window
     {
         try
         {
-            string scriptPath = Path.Combine(AppContext.BaseDirectory, "Check_Activation_Status.cmd");
+            // Run slmgr.vbs directly through the GUI script host. This shows the
+            // Windows Script Host activation dialog without creating a visible CMD window.
+            string slmgrPath = Path.Combine(Environment.SystemDirectory, "slmgr.vbs");
 
-            if (!File.Exists(scriptPath))
+            if (!File.Exists(slmgrPath))
             {
-                throw new FileNotFoundException("Check_Activation_Status.cmd was not found in the application folder.", scriptPath);
+                throw new FileNotFoundException("Windows activation script slmgr.vbs was not found.", slmgrPath);
             }
 
             Process.Start(new ProcessStartInfo
             {
-                FileName = Environment.GetEnvironmentVariable("ComSpec") ?? "cmd.exe",
-                Arguments = $"/c \"\"{scriptPath}\"\"",
-                WorkingDirectory = AppContext.BaseDirectory,
+                FileName = Path.Combine(Environment.SystemDirectory, "wscript.exe"),
+                Arguments = $"\"{slmgrPath}\" /xpr",
+                WorkingDirectory = Environment.SystemDirectory,
                 UseShellExecute = false,
                 CreateNoWindow = true,
                 WindowStyle = ProcessWindowStyle.Hidden
             });
 
-            ActivationStatusText.Text = "Checking Windows activation status...";
+            // The Windows Script Host dialog is displayed by wscript.exe. When the
+            // user clicks OK, that dialog and its process close automatically.
+            ActivationStatusText.Text = "Activation status opened.";
         }
         catch (Exception ex)
         {
