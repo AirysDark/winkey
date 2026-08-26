@@ -92,6 +92,38 @@ public partial class MainWindow : Window
         }
     }
 
+    private void CreateWindowsMedia_Click(object sender, RoutedEventArgs e)
+    {
+        try
+        {
+            var result = MessageBox.Show(
+                "Choose the Windows version you want to create installation media for.\n\nYes = Windows 11\nNo = Windows 10\nCancel = Do nothing\n\nWinKey will open the official Microsoft download page in your default browser.",
+                "Create Windows Installation Media",
+                MessageBoxButton.YesNoCancel,
+                MessageBoxImage.Question);
+
+            if (result == MessageBoxResult.Cancel) return;
+
+            string url = result == MessageBoxResult.Yes
+                ? "https://www.microsoft.com/software-download/windows11"
+                : "https://www.microsoft.com/software-download/windows10";
+
+            Process.Start(new ProcessStartInfo
+            {
+                FileName = url,
+                UseShellExecute = true
+            });
+        }
+        catch (Exception ex)
+        {
+            MessageBox.Show(
+                "WinKey could not open the Microsoft Windows download page.\n\n" + ex.Message,
+                "Open Download Page Failed",
+                MessageBoxButton.OK,
+                MessageBoxImage.Error);
+        }
+    }
+
     private void BackupWindowsKey_Click(object sender, RoutedEventArgs e)
     {
         try
@@ -116,7 +148,6 @@ public partial class MainWindow : Window
             string productKey = string.Empty;
             string source = string.Empty;
 
-            // Prefer the original OEM key embedded in UEFI/BIOS.
             if (IsUsableProductKey(_report.OemKey))
             {
                 productKey = _report.OemKey;
