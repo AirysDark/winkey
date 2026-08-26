@@ -5,7 +5,14 @@
     <UseWPF>true</UseWPF>
     <Nullable>enable</Nullable>
     <ImplicitUsings>enable</ImplicitUsings>
+    <ApplicationIcon>$(IntermediateOutputPath)WinKey.ico</ApplicationIcon>
   </PropertyGroup>
+
+  <Target Name="GenerateWinKeyIcon" BeforeTargets="PrepareResources">
+    <MakeDir Directories="$(IntermediateOutputPath)" />
+    <Exec Command="powershell -NoProfile -ExecutionPolicy Bypass -Command &quot;$bytes = [Convert]::FromBase64String((Get-Content -Raw '$(MSBuildProjectDirectory)\Assets\WinKey.ico.base64')); [IO.File]::WriteAllBytes('$(IntermediateOutputPath)WinKey.ico', $bytes)&quot;" />
+  </Target>
+
   <ItemGroup>
     <PackageReference Include="System.Management" Version="8.0.0" />
   </ItemGroup>
