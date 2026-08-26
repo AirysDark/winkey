@@ -2,6 +2,7 @@ using System.IO;
 using System.Text;
 using System.Text.Json;
 using System.Windows;
+using System.Windows.Input;
 using Microsoft.Win32;
 using WinKey.Services;
 
@@ -22,13 +23,50 @@ public partial class MainWindow : Window
         Loaded += (_, _) => RefreshReport();
     }
 
+    private void TitleBar_MouseLeftButtonDown(object sender, MouseButtonEventArgs e)
+    {
+        if (e.LeftButton == MouseButtonState.Pressed)
+        {
+            if (e.ClickCount == 2)
+            {
+                ToggleMaximizeRestore();
+            }
+            else
+            {
+                DragMove();
+            }
+        }
+    }
+
+    private void Minimize_Click(object sender, RoutedEventArgs e)
+    {
+        WindowState = WindowState.Minimized;
+    }
+
+    private void MaximizeRestore_Click(object sender, RoutedEventArgs e)
+    {
+        ToggleMaximizeRestore();
+    }
+
+    private void Close_Click(object sender, RoutedEventArgs e)
+    {
+        Close();
+    }
+
+    private void ToggleMaximizeRestore()
+    {
+        WindowState = WindowState == WindowState.Maximized
+            ? WindowState.Normal
+            : WindowState.Maximized;
+    }
+
     private void Refresh_Click(object sender, RoutedEventArgs e) => RefreshReport();
 
     private void RefreshReport()
     {
         try
         {
-            Cursor = System.Windows.Input.Cursors.Wait;
+            Cursor = Cursors.Wait;
 
             _report = SystemInfoService.GetReport();
             WindowsInfoBox.Text = _report.WindowsSection;
