@@ -90,29 +90,23 @@ public partial class MainWindow : Window
     {
         try
         {
-            string scriptPath = Path.Combine(AppContext.BaseDirectory, "WinKey_MediaCreationLauncher.cmd");
+            string scriptPath = Path.Combine(AppContext.BaseDirectory, "MediaCreationTool.bat");
             if (!File.Exists(scriptPath))
             {
-                throw new FileNotFoundException("WinKey_MediaCreationLauncher.cmd was not found next to WinKey.exe. Rebuild or republish WinKey so the bundled media creation launcher is included.", scriptPath);
+                throw new FileNotFoundException("MediaCreationTool.bat was not found next to WinKey.exe. Rebuild or republish WinKey so the bundled Media Creation Tool is included.", scriptPath);
             }
-
-            MessageBox.Show(
-                "WinKey will launch the Microsoft Media Creation Tool in manual mode. You will choose the Windows version, edition, language and architecture. If you choose USB installation media, Microsoft Media Creation Tool will ask you to select the exact USB drive. No USB drive is selected automatically.\n\nThe WinKey launcher also applies the corrected Windows 10 22H2 catalog and Media Creation Tool settings before starting the tool. The command window will stay open and show the real completion status or exit code.",
-                "Create Windows Installation Media",
-                MessageBoxButton.OK,
-                MessageBoxImage.Information);
 
             Process.Start(new ProcessStartInfo
             {
                 FileName = Path.Combine(Environment.SystemDirectory, "cmd.exe"),
-                Arguments = $"/c call \"{scriptPath}\" def",
+                Arguments = $"/k call \"{scriptPath}\"",
                 WorkingDirectory = AppContext.BaseDirectory,
                 UseShellExecute = true
             });
         }
         catch (Exception ex)
         {
-            MessageBox.Show("WinKey could not start the integrated Windows media creation tool.\n\n" + ex.Message, "Media Creation Failed", MessageBoxButton.OK, MessageBoxImage.Error);
+            MessageBox.Show("WinKey could not start MediaCreationTool.bat.\n\n" + ex.Message, "Media Creation Failed", MessageBoxButton.OK, MessageBoxImage.Error);
         }
     }
 
