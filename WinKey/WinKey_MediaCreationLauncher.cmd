@@ -6,6 +6,7 @@ set "PATCHED=%TEMP%\WinKey-MediaCreationTool-%RANDOM%%RANDOM%.bat"
 
 if not exist "%SOURCE%" (
     echo ERROR: MediaCreationTool.bat was not found next to WinKey.exe.
+    echo.
     pause
     exit /b 1
 )
@@ -13,6 +14,7 @@ if not exist "%SOURCE%" (
 copy /y "%SOURCE%" "%PATCHED%" >nul
 if errorlevel 1 (
     echo ERROR: Could not prepare the Media Creation Tool.
+    echo.
     pause
     exit /b 1
 )
@@ -24,12 +26,28 @@ if not "%PATCH_RESULT%"=="0" (
     echo.
     echo MediaCreationTool.bat was not started because the Windows 10 22H2 update could not be verified.
     del /f /q "%PATCHED%" >nul 2>nul
+    echo.
     pause
     exit /b %PATCH_RESULT%
 )
 
+echo.
+echo Starting MediaCreationTool.bat...
+echo.
 call "%PATCHED%" %*
 set "EXITCODE=%ERRORLEVEL%"
 
 del /f /q "%PATCHED%" >nul 2>nul
+
+echo.
+echo ================================================================
+if "%EXITCODE%"=="0" (
+    echo MediaCreationTool.bat finished successfully.
+) else (
+    echo MediaCreationTool.bat exited with code %EXITCODE%.
+    echo Review the messages above for the actual failure.
+)
+echo ================================================================
+echo.
+pause
 exit /b %EXITCODE%
