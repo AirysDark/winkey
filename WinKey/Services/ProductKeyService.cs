@@ -15,20 +15,14 @@ public static class ProductKeyService
             if (key?.GetValue("DigitalProductId") is not byte[] digitalProductId)
                 return "Not recoverable";
 
+            // This is the product key recoverable from the Windows installation's
+            // DigitalProductId registry value. Do not reject it just because its
+            // last five characters differ from the currently active licence:
+            // digital licences, changed keys and Windows servicing can make those
+            // values differ even though the recovered key is still useful to view
+            // and back up.
             string decodedKey = DecodeProductKey(digitalProductId);
-            if (!IsProductKey(decodedKey))
-                return "Not recoverable";
-
-            // DigitalProductId can decode to a generic/default Windows key that is
-            // not the key currently licensed on this PC. Never present that as a
-            // usable backup unless it matches the active Windows licence.
-            string activePartialKey = GetActiveWindowsPartialProductKey();
-            if (string.IsNullOrWhiteSpace(activePartialKey))
-                return "Not recoverable";
-
-            return decodedKey.EndsWith(activePartialKey, StringComparison.OrdinalIgnoreCase)
-                ? decodedKey
-                : "Not recoverable";
+            return IsProductKey(decodedKey) ? decodedKey : "Not recoverable";
         }
         catch
         {
