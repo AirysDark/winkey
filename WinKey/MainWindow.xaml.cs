@@ -130,44 +130,83 @@ public partial class MainWindow : Window
     {
         try
         {
-            _report ??= SystemInfoService.GetReport();
-            string productKey = string.Empty;
-            string source = string.Empty;
-            if (IsUsableProductKey(_report.OemKey))
+            // Always ask the user to select the backup file. Do not automatically use
+            // the OEM key from the current computer, because Restore Key is intended
+            // to restore the key stored in a WinKey backup selected by the user.
+            var dialog = new OpenFileDialog
             {
-                productKey = _report.OemKey;
-                source = "the original Windows OEM key embedded in this computer's UEFI/BIOS";
-            }
-            else
+                Title = "Select WinKey Product Key Backup",
+                Filter = "WinKey Backup (*.winkeybackup)|*.winkeybackup|JSON files (*.json)|*.json|All files (*.*)|*.*",
+                CheckFileExists = true,
+                Multiselect = false
+            };
+
+            if (dialog.ShowDialog() != true)
             {
-                var dialog = new OpenFileDialog { Filter = "WinKey Backup (*.winkeybackup;*.json)|*.winkeybackup;*.json|All files (*.*)|*.*" };
-                if (dialog.ShowDialog() != true) return;
-                WindowsKeyBackup? backup = JsonSerializer.Deserialize<WindowsKeyBackup>(File.ReadAllText(dialog.FileName), JsonOptions);
-                if (backup == null || backup.Format != "WinKey Windows Product Key Backup" || !IsUsableProductKey(backup.ProductKey)) throw new InvalidDataException("This is not a valid WinKey product key backup.");
-                productKey = backup.ProductKey;
-                source = $"the WinKey backup from {backup.ComputerName}";
+                ActivationStatusText.Text = "Restore cancelled.";
+                return;
             }
-            if (MessageBox.Show($"Restore and activate Windows using {source}?\n\nWinKey will install the product key and then ask Windows to activate using Microsoft's normal activation service.", "Restore & Activate Windows", MessageBoxButton.YesNo, MessageBoxImage.Question) != MessageBoxResult.Yes) return;
-            ActivationStatusText.Text = "Restoring product key and activating Windows...";
+
+            WindowsKeyBackup? backup = JsonSerializer.Deserialize<WindowsKeyBackup>(File.ReadAllText(dialog.FileName), JsonOptions);
+            if (backup == null || backup.Format != "WinKey Windows Product Key Backup" || !IsUsableProductKey(backup.ProductKey))
+                throw new InvalidDataException("This is not a valid WinKey product key backup.");
+
+            string productKey = backup.ProductKey.Trim();
+            string source = Path.GetFileName(dialog.FileName);
+
+            if (MessageBox.Show(
+                    $"Restore the Windows product key from:\n\n{source}\n\n" +
+                    $"Backup edition: {backup.WindowsEdition}\n\n" +
+                    "WinKey will install the selected product key and then ask Windows to activate using Microsoft's normal activation service.",
+                    "Restore & Activate Windows",
+                    MessageBoxButton.YesNo,
+                    MessageBoxImage.Question) != MessageBoxResult.Yes)
+            {
+                ActivationStatusText.Text = "Restore cancelled.";
+                return;
+            }
+
+            ActivationStatusText.Text = "Restoring selected product key and activating Windows...";
             Cursor = Cursors.Wait;
             int exitCode = await RunRestoreScriptAsync(productKey);
             Cursor = null;
+
             switch (exitCode)
             {
-                case 0: ActivationStatusText.Text = "Restore and activation completed. Review the Windows Script Host status dialog."; RefreshReport(); break;
-                case 2: ActivationStatusText.Text = "No usable Windows product key was found."; MessageBox.Show("WinKey could not find a usable Windows product key.", "No Product Key Found", MessageBoxButton.OK, MessageBoxImage.Warning); break;
-                case 10: ActivationStatusText.Text = "Windows could not install the product key."; MessageBox.Show("Windows could not install the selected product key. Make sure it matches the installed Windows edition.", "Restore Failed", MessageBoxButton.OK, MessageBoxImage.Error); break;
-                case 11: ActivationStatusText.Text = "The key was restored, but Windows could not activate automatically."; MessageBox.Show("The product key was restored, but Windows could not activate automatically. Check your internet connection and Windows Activation settings.", "Activation Required", MessageBoxButton.OK, MessageBoxImage.Warning); RefreshReport(); break;
-                default: ActivationStatusText.Text = "Restore failed."; MessageBox.Show("The Windows restore script failed. Exit code: " + exitCode, "Restore Failed", MessageBoxButton.OK, MessageBoxImage.Error); break;
+                case 0:
+                    ActivationStatusText.Text = "Restore and activation completed. Review the Windows Script Host status dialog.";
+                    RefreshReport();
+                    break;
+                case 2:
+                    ActivationStatusText.Text = "The selected backup does not contain a usable Windows product key.";
+                    MessageBox.Show("The selected backup does not contain a usable Windows product key.", "No Product Key Found", MessageBoxButton.OK, MessageBoxImage.Warning);
+                    break;
+                case 10:
+                    ActivationStatusText.Text = "Windows could not install the selected product key.";
+                    MessageBox.Show("Windows could not install the selected product key. Make sure it matches the installed Windows edition.", "Restore Failed", MessageBoxButton.OK, MessageBoxImage.Error);
+                    break;
+                case 11:
+                    ActivationStatusText.Text = "The key was restored, but Windows could not activate automatically.";
+                    MessageBox.Show("The product key was restored, but Windows could not activate automatically. Check your internet connection and Windows Activation settings.", "Activation Required", MessageBoxButton.OK, MessageBoxImage.Warning);
+                    RefreshReport();
+                    break;
+                default:
+                    ActivationStatusText.Text = "Restore failed.";
+                    MessageBox.Show("The Windows restore script failed. Exit code: " + exitCode, "Restore Failed", MessageBoxButton.OK, MessageBoxImage.Error);
+                    break;
             }
         }
         catch (System.ComponentModel.Win32Exception ex) when (ex.NativeErrorCode == 1223)
         {
-            Cursor = null; ActivationStatusText.Text = "Restore cancelled."; MessageBox.Show("Administrator permission was cancelled.", "Restore Cancelled", MessageBoxButton.OK, MessageBoxImage.Information);
+            Cursor = null;
+            ActivationStatusText.Text = "Restore cancelled.";
+            MessageBox.Show("Administrator permission was cancelled.", "Restore Cancelled", MessageBoxButton.OK, MessageBoxImage.Information);
         }
         catch (Exception ex)
         {
-            Cursor = null; ActivationStatusText.Text = "Restore failed."; MessageBox.Show(ex.Message, "Restore Failed", MessageBoxButton.OK, MessageBoxImage.Error);
+            Cursor = null;
+            ActivationStatusText.Text = "Restore failed.";
+            MessageBox.Show(ex.Message, "Restore Failed", MessageBoxButton.OK, MessageBoxImage.Error);
         }
     }
 
