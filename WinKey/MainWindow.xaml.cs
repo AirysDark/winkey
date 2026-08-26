@@ -67,12 +67,7 @@ public partial class MainWindow : Window
         try
         {
             string slmgrPath = Path.Combine(Environment.SystemDirectory, "slmgr.vbs");
-
-            if (!File.Exists(slmgrPath))
-            {
-                throw new FileNotFoundException("Windows activation script slmgr.vbs was not found.", slmgrPath);
-            }
-
+            if (!File.Exists(slmgrPath)) throw new FileNotFoundException("Windows activation script slmgr.vbs was not found.", slmgrPath);
             Process.Start(new ProcessStartInfo
             {
                 FileName = Path.Combine(Environment.SystemDirectory, "wscript.exe"),
@@ -82,7 +77,6 @@ public partial class MainWindow : Window
                 CreateNoWindow = true,
                 WindowStyle = ProcessWindowStyle.Hidden
             });
-
             ActivationStatusText.Text = "Activation status opened.";
         }
         catch (Exception ex)
@@ -96,31 +90,29 @@ public partial class MainWindow : Window
     {
         try
         {
-            var result = MessageBox.Show(
-                "Choose the Windows version you want to create installation media for.\n\nYes = Windows 11\nNo = Windows 10\nCancel = Do nothing\n\nWinKey will open the official Microsoft download page in your default browser.",
+            string scriptPath = Path.Combine(AppContext.BaseDirectory, "MediaCreationTool.bat");
+            if (!File.Exists(scriptPath))
+            {
+                throw new FileNotFoundException("MediaCreationTool.bat was not found next to WinKey.exe. Rebuild or republish WinKey so the bundled media creation tool is included.", scriptPath);
+            }
+
+            MessageBox.Show(
+                "WinKey will launch the integrated MediaCreationTool. It will let you choose the Windows version and creation mode. For USB media, the target USB drive must be selected manually as a safety step.",
                 "Create Windows Installation Media",
-                MessageBoxButton.YesNoCancel,
-                MessageBoxImage.Question);
-
-            if (result == MessageBoxResult.Cancel) return;
-
-            string url = result == MessageBoxResult.Yes
-                ? "https://www.microsoft.com/software-download/windows11"
-                : "https://www.microsoft.com/software-download/windows10";
+                MessageBoxButton.OK,
+                MessageBoxImage.Information);
 
             Process.Start(new ProcessStartInfo
             {
-                FileName = url,
+                FileName = Path.Combine(Environment.SystemDirectory, "cmd.exe"),
+                Arguments = $"/c \"\"{scriptPath}\"\"",
+                WorkingDirectory = AppContext.BaseDirectory,
                 UseShellExecute = true
             });
         }
         catch (Exception ex)
         {
-            MessageBox.Show(
-                "WinKey could not open the Microsoft Windows download page.\n\n" + ex.Message,
-                "Open Download Page Failed",
-                MessageBoxButton.OK,
-                MessageBoxImage.Error);
+            MessageBox.Show("WinKey could not start the integrated Windows media creation tool.\n\n" + ex.Message, "Media Creation Failed", MessageBoxButton.OK, MessageBoxImage.Error);
         }
     }
 
@@ -147,7 +139,6 @@ public partial class MainWindow : Window
             _report ??= SystemInfoService.GetReport();
             string productKey = string.Empty;
             string source = string.Empty;
-
             if (IsUsableProductKey(_report.OemKey))
             {
                 productKey = _report.OemKey;
@@ -155,98 +146,44 @@ public partial class MainWindow : Window
             }
             else
             {
-                var dialog = new OpenFileDialog
-                {
-                    Filter = "WinKey Backup (*.winkeybackup;*.json)|*.winkeybackup;*.json|All files (*.*)|*.*"
-                };
-
+                var dialog = new OpenFileDialog { Filter = "WinKey Backup (*.winkeybackup;*.json)|*.winkeybackup;*.json|All files (*.*)|*.*" };
                 if (dialog.ShowDialog() != true) return;
-
                 WindowsKeyBackup? backup = JsonSerializer.Deserialize<WindowsKeyBackup>(File.ReadAllText(dialog.FileName), JsonOptions);
-                if (backup == null || backup.Format != "WinKey Windows Product Key Backup" || !IsUsableProductKey(backup.ProductKey))
-                {
-                    throw new InvalidDataException("This is not a valid WinKey product key backup.");
-                }
-
+                if (backup == null || backup.Format != "WinKey Windows Product Key Backup" || !IsUsableProductKey(backup.ProductKey)) throw new InvalidDataException("This is not a valid WinKey product key backup.");
                 productKey = backup.ProductKey;
                 source = $"the WinKey backup from {backup.ComputerName}";
             }
-
-            if (MessageBox.Show(
-                $"Restore and activate Windows using {source}?\n\nWinKey will install the product key and then ask Windows to activate using Microsoft's normal activation service.",
-                "Restore & Activate Windows",
-                MessageBoxButton.YesNo,
-                MessageBoxImage.Question) != MessageBoxResult.Yes)
-            {
-                return;
-            }
-
+            if (MessageBox.Show($"Restore and activate Windows using {source}?\n\nWinKey will install the product key and then ask Windows to activate using Microsoft's normal activation service.", "Restore & Activate Windows", MessageBoxButton.YesNo, MessageBoxImage.Question) != MessageBoxResult.Yes) return;
             ActivationStatusText.Text = "Restoring product key and activating Windows...";
             Cursor = Cursors.Wait;
-
             int exitCode = await RunRestoreScriptAsync(productKey);
             Cursor = null;
-
             switch (exitCode)
             {
-                case 0:
-                    ActivationStatusText.Text = "Restore and activation completed. Review the Windows Script Host status dialog.";
-                    RefreshReport();
-                    break;
-                case 2:
-                    ActivationStatusText.Text = "No usable Windows product key was found.";
-                    MessageBox.Show("WinKey could not find a usable Windows product key.", "No Product Key Found", MessageBoxButton.OK, MessageBoxImage.Warning);
-                    break;
-                case 10:
-                    ActivationStatusText.Text = "Windows could not install the product key.";
-                    MessageBox.Show("Windows could not install the selected product key. Make sure it matches the installed Windows edition.", "Restore Failed", MessageBoxButton.OK, MessageBoxImage.Error);
-                    break;
-                case 11:
-                    ActivationStatusText.Text = "The key was restored, but Windows could not activate automatically.";
-                    MessageBox.Show("The product key was restored, but Windows could not activate automatically. Check your internet connection and Windows Activation settings.", "Activation Required", MessageBoxButton.OK, MessageBoxImage.Warning);
-                    RefreshReport();
-                    break;
-                default:
-                    ActivationStatusText.Text = "Restore failed.";
-                    MessageBox.Show("The Windows restore script failed. Exit code: " + exitCode, "Restore Failed", MessageBoxButton.OK, MessageBoxImage.Error);
-                    break;
+                case 0: ActivationStatusText.Text = "Restore and activation completed. Review the Windows Script Host status dialog."; RefreshReport(); break;
+                case 2: ActivationStatusText.Text = "No usable Windows product key was found."; MessageBox.Show("WinKey could not find a usable Windows product key.", "No Product Key Found", MessageBoxButton.OK, MessageBoxImage.Warning); break;
+                case 10: ActivationStatusText.Text = "Windows could not install the product key."; MessageBox.Show("Windows could not install the selected product key. Make sure it matches the installed Windows edition.", "Restore Failed", MessageBoxButton.OK, MessageBoxImage.Error); break;
+                case 11: ActivationStatusText.Text = "The key was restored, but Windows could not activate automatically."; MessageBox.Show("The product key was restored, but Windows could not activate automatically. Check your internet connection and Windows Activation settings.", "Activation Required", MessageBoxButton.OK, MessageBoxImage.Warning); RefreshReport(); break;
+                default: ActivationStatusText.Text = "Restore failed."; MessageBox.Show("The Windows restore script failed. Exit code: " + exitCode, "Restore Failed", MessageBoxButton.OK, MessageBoxImage.Error); break;
             }
         }
         catch (System.ComponentModel.Win32Exception ex) when (ex.NativeErrorCode == 1223)
         {
-            Cursor = null;
-            ActivationStatusText.Text = "Restore cancelled.";
-            MessageBox.Show("Administrator permission was cancelled.", "Restore Cancelled", MessageBoxButton.OK, MessageBoxImage.Information);
+            Cursor = null; ActivationStatusText.Text = "Restore cancelled."; MessageBox.Show("Administrator permission was cancelled.", "Restore Cancelled", MessageBoxButton.OK, MessageBoxImage.Information);
         }
         catch (Exception ex)
         {
-            Cursor = null;
-            ActivationStatusText.Text = "Restore failed.";
-            MessageBox.Show(ex.Message, "Restore Failed", MessageBoxButton.OK, MessageBoxImage.Error);
+            Cursor = null; ActivationStatusText.Text = "Restore failed."; MessageBox.Show(ex.Message, "Restore Failed", MessageBoxButton.OK, MessageBoxImage.Error);
         }
     }
 
     private static async Task<int> RunRestoreScriptAsync(string productKey)
     {
         string scriptPath = Path.Combine(AppContext.BaseDirectory, "Restore_Windows_Key.ps1");
-        if (!File.Exists(scriptPath))
-        {
-            throw new FileNotFoundException("Restore_Windows_Key.ps1 was not found next to WinKey.exe.", scriptPath);
-        }
-
+        if (!File.Exists(scriptPath)) throw new FileNotFoundException("Restore_Windows_Key.ps1 was not found next to WinKey.exe.", scriptPath);
         string powershellPath = Path.Combine(Environment.SystemDirectory, "WindowsPowerShell", "v1.0", "powershell.exe");
         if (!File.Exists(powershellPath)) powershellPath = "powershell.exe";
-
-        var psi = new ProcessStartInfo
-        {
-            FileName = powershellPath,
-            Arguments = $"-NoProfile -ExecutionPolicy Bypass -WindowStyle Hidden -File \"{scriptPath}\" -ProductKey \"{productKey}\"",
-            WorkingDirectory = AppContext.BaseDirectory,
-            UseShellExecute = true,
-            Verb = "runas",
-            WindowStyle = ProcessWindowStyle.Hidden
-        };
-
+        var psi = new ProcessStartInfo { FileName = powershellPath, Arguments = $"-NoProfile -ExecutionPolicy Bypass -WindowStyle Hidden -File \"{scriptPath}\" -ProductKey \"{productKey}\"", WorkingDirectory = AppContext.BaseDirectory, UseShellExecute = true, Verb = "runas", WindowStyle = ProcessWindowStyle.Hidden };
         using Process? process = Process.Start(psi);
         if (process == null) throw new InvalidOperationException("Could not start the Windows restore script.");
         await process.WaitForExitAsync();
