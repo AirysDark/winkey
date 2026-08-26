@@ -6,16 +6,27 @@ set "PATCHED=%TEMP%\WinKey-MediaCreationTool-%RANDOM%%RANDOM%.bat"
 
 if not exist "%SOURCE%" (
     echo ERROR: MediaCreationTool.bat was not found next to WinKey.exe.
+    pause
     exit /b 1
 )
 
 copy /y "%SOURCE%" "%PATCHED%" >nul
 if errorlevel 1 (
     echo ERROR: Could not prepare the Media Creation Tool.
+    pause
     exit /b 1
 )
 
-powershell -NoProfile -ExecutionPolicy Bypass -Command "$p=$env:PATCHED; $s=[IO.File]::ReadAllText($p).Replace([Environment]::NewLine,'`n'); $old=':choice-14`nset ""VER=19045"" & set ""VID=22H2"" & set ""CB=19045.2965.230505-1139.22h2_release_svc_refresh"" & set ""CT=2023/05/"" & set ""CC=1.4.1""`nset ""CAB=https://download.microsoft.com/download/3/c/9/3c959fca-d288-46aa-b578-2a6c6c33137a/products_win10_20230510.cab""`nset ""EXE=https://download.microsoft.com/download/9/e/a/9eac306f-d134-4609-9c58-35d1638c2363/MediaCreationTool22H2.exe""'; $new=':choice-14`nset ""VER=19045"" & set ""VID=22H2"" & set ""CB=19045.3803.231204-0204.22h2_release_svc_refresh"" & set ""CT=2023/12/"" & set ""CC=1.4.1""`nset ""CAB=https://download.microsoft.com/download/7/9/c/79cbc22a-0eea-4a0d-89c0-054a1b3aa8e0/products.cab""`nset ""EXE=https://download.microsoft.com/download/9/e/a/9eac306f-d134-4609-9c58-35d1638c2363/MediaCreationTool_22H2.exe""'; if($s.Contains($old)){[IO.File]::WriteAllText($p,$s.Replace($old,$new),[Text.Encoding]::ASCII); Write-Host 'Windows 10 22H2 settings updated for this run.'; exit 0}else{Write-Host 'WARNING: The expected Windows 10 22H2 block was not found. Running the bundled script unchanged.'; exit 0}"
+powershell -NoProfile -ExecutionPolicy Bypass -Command "$p=$env:PATCHED; try { $s=[IO.File]::ReadAllText($p); $nl=if($s.Contains([Environment]::NewLine)){[Environment]::NewLine}else{[string][char]10}; $pattern='(?ms)^:choice-14\r?\n.*?(?=^:choice-13\b)'; if(-not [regex]::IsMatch($s,$pattern)){Write-Host 'ERROR: Windows 10 22H2 section was not found. The Media Creation Tool was not started.'; exit 2}; $lines=@(':choice-14','set ""VER=19045"" & set ""VID=22H2"" & set ""CB=19045.3803.231204-0204.22h2_release_svc_refresh"" & set ""CT=2023/12/"" & set ""CC=1.4.1""','set ""CAB=https://download.microsoft.com/download/7/9/c/79cbc22a-0eea-4a0d-89c0-054a1b3aa8e0/products.cab""','set ""EXE=https://download.microsoft.com/download/9/e/a/9eac306f-d134-4609-9c58-35d1638c2363/MediaCreationTool_22H2.exe""','goto process ::# refreshed 19041 base with integrated 22H2 enablement package - current',''); $new=$lines -join $nl; $updated=[regex]::Replace($s,$pattern,$new,1); [IO.File]::WriteAllText($p,$updated,[Text.UTF8Encoding]::new($false)); $verify=[IO.File]::ReadAllText($p); if($verify -notmatch '19045\.3803\.231204-0204\.22h2_release_svc_refresh'){Write-Host 'ERROR: Windows 10 22H2 update verification failed.'; exit 3}; Write-Host 'Windows 10 22H2 settings updated and verified for this run.'; exit 0 } catch { Write-Host ('ERROR: Failed to update Windows 10 22H2 settings: ' + $_.Exception.Message); exit 1 }"
+set "PATCH_RESULT=%ERRORLEVEL%"
+
+if not "%PATCH_RESULT%"=="0" (
+    echo.
+    echo MediaCreationTool.bat was not started because the Windows 10 22H2 update could not be verified.
+    del /f /q "%PATCHED%" >nul 2>nul
+    pause
+    exit /b %PATCH_RESULT%
+)
 
 call "%PATCHED%" %*
 set "EXITCODE=%ERRORLEVEL%"
