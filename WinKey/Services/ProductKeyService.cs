@@ -20,9 +20,6 @@ public static class ProductKeyService
             string legacyKey = DecodeProductKey(digitalProductId, false);
             string activePartial = GetActiveWindowsPartialProductKey();
 
-            // Prefer the recovered key whose last five characters match the
-            // currently licensed Windows product. Do not reject either decoded
-            // key merely because no partial-key match is available.
             if (!string.IsNullOrWhiteSpace(activePartial))
             {
                 if (modernKey.EndsWith(activePartial, StringComparison.OrdinalIgnoreCase))
@@ -31,12 +28,32 @@ public static class ProductKeyService
                     return legacyKey;
             }
 
-            if (IsProductKey(modernKey))
-                return modernKey;
-            if (IsProductKey(legacyKey))
-                return legacyKey;
+            return IsProductKey(modernKey) ? modernKey
+                : IsProductKey(legacyKey) ? legacyKey
+                : "Not recoverable";
+        }
+        catch
+        {
+            return "Unavailable";
+        }
+    }
 
-            return "Not recoverable";
+    // This is intentionally separate from GetInstalledProductKey().
+    // Backup must save the decoder output itself, not the displayed/cached
+    // installed key and not a value selected by licence verification logic.
+    public static string GetDecodedInstalledProductKey()
+    {
+        try
+        {
+            using var key = Registry.LocalMachine.OpenSubKey(@"SOFTWARE\Microsoft\Windows NT\CurrentVersion");
+            if (key?.GetValue("DigitalProductId") is not byte[] digitalProductId)
+                return "Not recoverable";
+
+            string decodedKey = DecodeProductKey(digitalProductId, true);
+            if (!IsProductKey(decodedKey))
+                decodedKey = DecodeProductKey(digitalProductId, false);
+
+            return IsProductKey(decodedKey) ? decodedKey : "Not recoverable";
         }
         catch
         {
@@ -117,9 +134,6 @@ public static class ProductKeyService
 
         string result = new(decoded);
 
-        // Windows 8/10/11 DigitalProductId encoding stores an N marker. The
-        // marker replaces one character; it must not be appended, otherwise the
-        // result becomes 26 characters and is incorrectly marked unrecoverable.
         if (useWindows8Algorithm && ((digitalProductId[66] / 6) & 1) == 1)
         {
             result = result.Remove(0, 1).Insert(Math.Clamp(last, 0, 24), "N");
