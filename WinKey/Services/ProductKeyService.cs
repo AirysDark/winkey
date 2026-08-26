@@ -6,6 +6,7 @@ namespace WinKey.Services;
 public static class ProductKeyService
 {
     private const string WindowsLicensingApplicationId = "55c92734-d682-4d71-983e-d6ec3f16059f";
+    private const string KeyChars = "BCDFGHJKMPQRTVWXY2346789";
 
     public static string GetInstalledProductKey()
     {
@@ -15,8 +16,27 @@ public static class ProductKeyService
             if (key?.GetValue("DigitalProductId") is not byte[] digitalProductId)
                 return "Not recoverable";
 
-            string decodedKey = DecodeProductKey(digitalProductId);
-            return IsProductKey(decodedKey) ? decodedKey : "Not recoverable";
+            string modernKey = DecodeProductKey(digitalProductId, true);
+            string legacyKey = DecodeProductKey(digitalProductId, false);
+            string activePartial = GetActiveWindowsPartialProductKey();
+
+            // Prefer the recovered key whose last five characters match the
+            // currently licensed Windows product. Do not reject either decoded
+            // key merely because no partial-key match is available.
+            if (!string.IsNullOrWhiteSpace(activePartial))
+            {
+                if (modernKey.EndsWith(activePartial, StringComparison.OrdinalIgnoreCase))
+                    return modernKey;
+                if (legacyKey.EndsWith(activePartial, StringComparison.OrdinalIgnoreCase))
+                    return legacyKey;
+            }
+
+            if (IsProductKey(modernKey))
+                return modernKey;
+            if (IsProductKey(legacyKey))
+                return legacyKey;
+
+            return "Not recoverable";
         }
         catch
         {
@@ -31,8 +51,9 @@ public static class ProductKeyService
             using var searcher = new ManagementObjectSearcher("SELECT OA3xOriginalProductKey FROM SoftwareLicensingService");
             foreach (ManagementObject item in searcher.Get())
             {
-                var value = item["OA3xOriginalProductKey"]?.ToString()?.Trim();
-                if (IsProductKey(value)) return value!;
+                string? value = item["OA3xOriginalProductKey"]?.ToString()?.Trim();
+                if (IsProductKey(value))
+                    return value!;
             }
         }
         catch { }
@@ -51,11 +72,16 @@ public static class ProductKeyService
                 string applicationId = item["ApplicationID"]?.ToString() ?? string.Empty;
                 int licenseStatus = item["LicenseStatus"] is null ? 0 : Convert.ToInt32(item["LicenseStatus"]);
                 string partialKey = item["PartialProductKey"]?.ToString()?.Trim() ?? string.Empty;
-                if (applicationId.Equals(WindowsLicensingApplicationId, StringComparison.OrdinalIgnoreCase) && licenseStatus == 1 && partialKey.Length == 5)
+
+                if (applicationId.Equals(WindowsLicensingApplicationId, StringComparison.OrdinalIgnoreCase) &&
+                    licenseStatus == 1 && partialKey.Length == 5)
+                {
                     return partialKey;
+                }
             }
         }
         catch { }
+
         return string.Empty;
     }
 
@@ -63,26 +89,17 @@ public static class ProductKeyService
         !string.IsNullOrWhiteSpace(key) &&
         System.Text.RegularExpressions.Regex.IsMatch(key.Trim(), @"(?i)^[A-Z0-9]{5}(?:-[A-Z0-9]{5}){4}$");
 
-    private static string DecodeProductKey(byte[] digitalProductId)
+    private static string DecodeProductKey(byte[] digitalProductId, bool useWindows8Algorithm)
     {
-        const string chars = "BCDFGHJKMPQRTVWXY2346789";
         const int keyStart = 52;
         const int keyLength = 15;
 
         if (digitalProductId.Length < keyStart + keyLength || digitalProductId.Length <= 66)
             return string.Empty;
 
-        // Work on a copy. The Windows 8+ decoding algorithm modifies byte 66.
-        byte[] productId = (byte[])digitalProductId.Clone();
-        int keyOffset = keyStart;
-        int isWin8OrNewer = (productId[66] / 6) & 1;
-        productId[66] = (byte)((productId[66] & 0xF7) | ((isWin8OrNewer & 2) * 4));
-
-        var keyBytes = new byte[keyLength];
-        Array.Copy(productId, keyOffset, keyBytes, 0, keyLength);
-
-        string decoded = string.Empty;
+        byte[] keyBytes = digitalProductId.Skip(keyStart).Take(keyLength).ToArray();
         int last = 0;
+        char[] decoded = new char[25];
 
         for (int i = 24; i >= 0; i--)
         {
@@ -94,24 +111,24 @@ public static class ProductKeyService
                 current %= 24;
             }
 
-            decoded = chars[current] + decoded;
+            decoded[i] = KeyChars[current];
             last = current;
         }
 
-        // Windows 8 and later encode an N marker into the key. The previous
-        // implementation removed the wrong character and produced a different,
-        // unusable 25-character key.
-        if (isWin8OrNewer == 1)
+        string result = new(decoded);
+
+        // Windows 8/10/11 DigitalProductId encoding stores an N marker. The
+        // marker replaces one character; it must not be appended, otherwise the
+        // result becomes 26 characters and is incorrectly marked unrecoverable.
+        if (useWindows8Algorithm && ((digitalProductId[66] / 6) & 1) == 1)
         {
-            string prefix = decoded.Substring(1, Math.Min(last, decoded.Length - 1));
-            decoded = decoded.Replace(prefix, prefix + "N", StringComparison.Ordinal);
-            if (last == 0)
-                decoded = "N" + decoded;
+            result = result.Remove(0, 1).Insert(Math.Clamp(last, 0, 24), "N");
         }
 
-        if (decoded.Length != 25)
+        if (result.Length != 25)
             return string.Empty;
 
-        return string.Join("-", Enumerable.Range(0, 5).Select(group => decoded.Substring(group * 5, 5)));
+        return string.Join("-", Enumerable.Range(0, 5)
+            .Select(group => result.Substring(group * 5, 5)));
     }
 }
