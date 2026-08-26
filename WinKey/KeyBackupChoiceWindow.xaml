@@ -1,15 +1,60 @@
-<Window x:Class="WinKey.KeyBackupChoiceWindow" xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation" xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml" Title="Choose Key to Back Up" Width="620" Height="520" ResizeMode="NoResize" WindowStartupLocation="CenterOwner" Background="#0B0F14" Foreground="#E6E6E6">
-  <Grid Margin="20">
-    <Grid.RowDefinitions><RowDefinition Height="Auto"/><RowDefinition Height="*"/><RowDefinition Height="Auto"/></Grid.RowDefinitions>
-    <StackPanel><TextBlock Text="Choose the exact key to back up" FontSize="18" FontWeight="SemiBold"/><TextBlock Text="The decoder results are shown below. The exact selected value will be written to the backup file without substitution." Foreground="#9FB0C3" TextWrapping="Wrap" Margin="0,6,0,0"/></StackPanel>
-    <ScrollViewer Grid.Row="1" Margin="0,16,0,16"><StackPanel>
-      <RadioButton x:Name="ModernKeyOption" Content="Modern Windows Decoder Result" GroupName="KeyType" IsChecked="True" FontSize="16" Padding="4"/>
-      <TextBox x:Name="ModernKeyText" IsReadOnly="True" FontFamily="Consolas" Margin="32,4,0,14" Padding="8" Background="#070B10" Foreground="#D7E3F1" BorderBrush="#223040"/>
-      <RadioButton x:Name="LegacyKeyOption" Content="Legacy Decoder Result" GroupName="KeyType" FontSize="16" Padding="4"/>
-      <TextBox x:Name="LegacyKeyText" IsReadOnly="True" FontFamily="Consolas" Margin="32,4,0,14" Padding="8" Background="#070B10" Foreground="#D7E3F1" BorderBrush="#223040"/>
-      <RadioButton x:Name="OemKeyOption" Content="OEM/UEFI Firmware Key" GroupName="KeyType" FontSize="16" Padding="4"/>
-      <TextBox x:Name="OemKeyText" IsReadOnly="True" FontFamily="Consolas" Margin="32,4,0,0" Padding="8" Background="#070B10" Foreground="#D7E3F1" BorderBrush="#223040"/>
-    </StackPanel></ScrollViewer>
-    <StackPanel Grid.Row="2" Orientation="Horizontal" HorizontalAlignment="Right"><Button Content="Cancel" Width="100" Height="34" Margin="0,0,8,0" Click="Cancel_Click"/><Button Content="Save Selected Key" Width="150" Height="34" Background="#FF6A00" Foreground="#101010" Click="Continue_Click"/></StackPanel>
-  </Grid>
+<Window x:Class="WinKey.KeyBackupChoiceWindow"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        Title="Choose Key to Back Up"
+        Width="620"
+        Height="420"
+        ResizeMode="NoResize"
+        WindowStartupLocation="CenterOwner"
+        Background="#0B0F14"
+        Foreground="#E6E6E6">
+    <Grid Margin="20">
+        <Grid.RowDefinitions>
+            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="*"/>
+            <RowDefinition Height="Auto"/>
+        </Grid.RowDefinitions>
+
+        <StackPanel>
+            <TextBlock Text="Choose the Windows key to back up" FontSize="18" FontWeight="SemiBold"/>
+            <TextBlock Text="Installed Key is decoded directly from this Windows installation. The exact selected key is written to the backup file."
+                       Foreground="#9FB0C3" TextWrapping="Wrap" Margin="0,6,0,0"/>
+        </StackPanel>
+
+        <StackPanel Grid.Row="1" Margin="0,18,0,18">
+            <RadioButton x:Name="InstalledKeyOption"
+                         Content="Installed Key"
+                         GroupName="KeyType"
+                         IsChecked="True"
+                         FontSize="16"
+                         Padding="4"/>
+            <TextBox x:Name="InstalledKeyText"
+                     IsReadOnly="True"
+                     FontFamily="Consolas"
+                     Margin="32,4,0,16"
+                     Padding="8"
+                     Background="#070B10"
+                     Foreground="#D7E3F1"
+                     BorderBrush="#223040"/>
+
+            <RadioButton x:Name="OemKeyOption"
+                         Content="OEM/UEFI Firmware Key"
+                         GroupName="KeyType"
+                         FontSize="16"
+                         Padding="4"/>
+            <TextBox x:Name="OemKeyText"
+                     IsReadOnly="True"
+                     FontFamily="Consolas"
+                     Margin="32,4,0,0"
+                     Padding="8"
+                     Background="#070B10"
+                     Foreground="#D7E3F1"
+                     BorderBrush="#223040"/>
+        </StackPanel>
+
+        <StackPanel Grid.Row="2" Orientation="Horizontal" HorizontalAlignment="Right">
+            <Button Content="Cancel" Width="100" Height="34" Margin="0,0,8,0" Click="Cancel_Click"/>
+            <Button Content="Save Selected Key" Width="150" Height="34" Background="#FF6A00" Foreground="#101010" Click="Continue_Click"/>
+        </StackPanel>
+    </Grid>
 </Window>
