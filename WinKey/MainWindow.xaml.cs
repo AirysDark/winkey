@@ -97,7 +97,7 @@ public partial class MainWindow : Window
             }
 
             MessageBox.Show(
-                "WinKey will launch the integrated MediaCreationTool. It will let you choose the Windows version and creation mode. For USB media, the target USB drive must be selected manually as a safety step.",
+                "WinKey will launch the Microsoft Media Creation Tool in manual mode. You will choose the Windows options and, if creating USB installation media, you will select the exact USB drive yourself. No USB drive is selected automatically.",
                 "Create Windows Installation Media",
                 MessageBoxButton.OK,
                 MessageBoxImage.Information);
@@ -105,7 +105,7 @@ public partial class MainWindow : Window
             Process.Start(new ProcessStartInfo
             {
                 FileName = Path.Combine(Environment.SystemDirectory, "cmd.exe"),
-                Arguments = $"/c \"\"{scriptPath}\"\"",
+                Arguments = $"/c \"\"{scriptPath}\" def\"",
                 WorkingDirectory = AppContext.BaseDirectory,
                 UseShellExecute = true
             });
