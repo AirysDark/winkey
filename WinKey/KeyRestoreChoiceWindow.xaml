@@ -1,0 +1,48 @@
+<Window x:Class="WinKey.KeyRestoreChoiceWindow"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        Title="Choose Key to Restore"
+        Width="480"
+        Height="310"
+        ResizeMode="NoResize"
+        WindowStartupLocation="CenterOwner"
+        Background="#0B0F14"
+        Foreground="#E6E6E6">
+    <Grid Margin="20">
+        <Grid.RowDefinitions>
+            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="*"/>
+            <RowDefinition Height="Auto"/>
+        </Grid.RowDefinitions>
+
+        <StackPanel>
+            <TextBlock Text="Which Windows key do you want to restore?" FontSize="18" FontWeight="SemiBold"/>
+            <TextBlock Text="Select the backup type, then choose the corresponding key backup file."
+                       Foreground="#9FB0C3" TextWrapping="Wrap" Margin="0,6,0,0"/>
+        </StackPanel>
+
+        <StackPanel Grid.Row="1" Margin="0,20,0,16">
+            <RadioButton x:Name="InstalledKeyOption"
+                         Content="Installed Key"
+                         GroupName="KeyType"
+                         IsChecked="True"
+                         FontSize="16"
+                         Padding="4"/>
+            <TextBlock Text="Restore a backup created from the installed Windows product key."
+                       Foreground="#9FB0C3" TextWrapping="Wrap" Margin="32,2,0,16"/>
+
+            <RadioButton x:Name="OemKeyOption"
+                         Content="OEM/UEFI Key"
+                         GroupName="KeyType"
+                         FontSize="16"
+                         Padding="4"/>
+            <TextBlock Text="Restore a backup created from the product key embedded in the PC firmware."
+                       Foreground="#9FB0C3" TextWrapping="Wrap" Margin="32,2,0,0"/>
+        </StackPanel>
+
+        <StackPanel Grid.Row="2" Orientation="Horizontal" HorizontalAlignment="Right">
+            <Button Content="Cancel" Width="100" Height="34" Margin="0,0,8,0" Click="Cancel_Click"/>
+            <Button Content="Continue" Width="110" Height="34" Background="#FF6A00" Foreground="#101010" Click="Continue_Click"/>
+        </StackPanel>
+    </Grid>
+</Window>
