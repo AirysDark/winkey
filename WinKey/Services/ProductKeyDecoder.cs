@@ -1,11 +1,12 @@
 namespace WinKey.Services;
 
-public sealed record ProductKeyDecodeResult(
-    string ModernKey,
-    string LegacyKey,
-    bool ModernKeyValid,
-    bool LegacyKeyValid);
+public sealed record ProductKeyDecodeResult(string InstalledKey, bool InstalledKeyValid);
 
+/// <summary>
+/// Decodes the Windows product key stored in DigitalProductId.
+/// The Windows 8/10/11 algorithm is implemented here using the standard
+/// base-24 conversion plus the Windows 8+ N-insertion transformation.
+/// </summary>
 public static class ProductKeyDecoder
 {
     private const string KeyChars = "BCDFGHJKMPQRTVWXY2346789";
@@ -17,14 +18,8 @@ public static class ProductKeyDecoder
         if (digitalProductId is null)
             throw new ArgumentNullException(nameof(digitalProductId));
 
-        string modernKey = DecodeProductKey(digitalProductId, useWindows8Algorithm: true);
-        string legacyKey = DecodeProductKey(digitalProductId, useWindows8Algorithm: false);
-
-        return new ProductKeyDecodeResult(
-            modernKey,
-            legacyKey,
-            IsProductKey(modernKey),
-            IsProductKey(legacyKey));
+        string key = DecodeWindows8AndLater(digitalProductId);
+        return new ProductKeyDecodeResult(key, IsProductKey(key));
     }
 
     public static bool IsProductKey(string? key) =>
@@ -33,26 +28,27 @@ public static class ProductKeyDecoder
             key.Trim(),
             @"(?i)^[A-Z0-9]{5}(?:-[A-Z0-9]{5}){4}$");
 
-    private static string DecodeProductKey(byte[] digitalProductId, bool useWindows8Algorithm)
+    private static string DecodeWindows8AndLater(byte[] digitalProductId)
     {
         if (digitalProductId.Length < KeyStart + KeyLength || digitalProductId.Length <= 66)
             return string.Empty;
 
-        byte[] keyBytes = digitalProductId
-            .Skip(KeyStart)
-            .Take(KeyLength)
-            .ToArray();
+        // Work on a private copy. The Windows 8+ algorithm modifies byte 66
+        // before decoding and must not mutate the registry buffer owned by the caller.
+        byte[] buffer = (byte[])digitalProductId.Clone();
+        int isWindows8OrLater = (buffer[66] / 6) & 1;
+        buffer[66] = (byte)((buffer[66] & 0xF7) | ((isWindows8OrLater & 2) * 4));
 
-        int last = 0;
+        byte[] keyBytes = buffer.Skip(KeyStart).Take(KeyLength).ToArray();
         char[] decoded = new char[25];
+        int last = 0;
 
         for (int i = 24; i >= 0; i--)
         {
             int current = 0;
-
             for (int j = KeyLength - 1; j >= 0; j--)
             {
-                current = current * 256 + keyBytes[j];
+                current = (current * 256) + keyBytes[j];
                 keyBytes[j] = (byte)(current / 24);
                 current %= 24;
             }
@@ -61,18 +57,17 @@ public static class ProductKeyDecoder
             last = current;
         }
 
-        string result = new(decoded);
+        string key = new(decoded);
 
-        if (useWindows8Algorithm && ((digitalProductId[66] / 6) & 1) == 1)
-        {
-            int insertIndex = Math.Clamp(last, 0, 24);
-            result = result.Remove(0, 1).Insert(insertIndex, "N");
-        }
+        // Canonical Windows 8+ transformation: remove the first character,
+        // insert N at the final base-24 remainder position, then format 5x5.
+        if (isWindows8OrLater == 1)
+            key = key.Substring(1, last) + "N" + key.Substring(last + 1);
 
-        if (result.Length != 25)
+        if (key.Length != 25)
             return string.Empty;
 
         return string.Join("-", Enumerable.Range(0, 5)
-            .Select(group => result.Substring(group * 5, 5)));
+            .Select(group => key.Substring(group * 5, 5)));
     }
 }
