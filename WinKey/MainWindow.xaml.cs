@@ -76,9 +76,6 @@ public partial class MainWindow : Window
     {
         try
         {
-            // Decode the installed key once with the canonical Windows 8+ decoder.
-            // The dialog receives that exact value and the selected value is written
-            // directly to disk without a second decode or substitution.
             ProductKeyDecodeResult installedResult = ProductKeyService.DecodeInstalledProductKey();
             string oemKey = ProductKeyService.GetOemProductKey();
             var choiceDialog = new KeyBackupChoiceWindow(installedResult, oemKey) { Owner = this };
@@ -91,10 +88,7 @@ public partial class MainWindow : Window
                 return;
             }
 
-            string keyType = choiceDialog.SelectedChoice == KeyBackupChoiceWindow.KeyChoice.Installed
-                ? "Installed"
-                : "OEM-UEFI";
-
+            string keyType = choiceDialog.SelectedChoice == KeyBackupChoiceWindow.KeyChoice.Installed ? "Installed" : "OEM-UEFI";
             var dialog = new SaveFileDialog
             {
                 Title = $"Save {keyType} Windows Product Key Backup",
@@ -115,16 +109,59 @@ public partial class MainWindow : Window
     {
         try
         {
-            var dialog = new OpenFileDialog { Title = "Select Windows Product Key Backup", Filter = "Windows key backup (*.txt)|*.txt|All files (*.*)|*.*", CheckFileExists = true, Multiselect = false };
-            if (dialog.ShowDialog() != true) { ActivationStatusText.Text = "Restore cancelled."; return; }
+            var choiceDialog = new KeyRestoreChoiceWindow { Owner = this };
+            if (choiceDialog.ShowDialog() != true || choiceDialog.SelectedChoice == KeyRestoreChoiceWindow.KeyChoice.None)
+            {
+                ActivationStatusText.Text = "Restore cancelled.";
+                return;
+            }
+
+            string keyType = choiceDialog.SelectedChoice == KeyRestoreChoiceWindow.KeyChoice.Installed ? "Installed" : "OEM/UEFI";
+            string expectedFileHint = choiceDialog.SelectedChoice == KeyRestoreChoiceWindow.KeyChoice.Installed
+                ? "WindowsKey-Installed"
+                : "WindowsKey-OEM-UEFI";
+
+            var dialog = new OpenFileDialog
+            {
+                Title = $"Select {keyType} Windows Product Key Backup",
+                Filter = "Windows key backup (*.txt)|*.txt|All files (*.*)|*.*",
+                CheckFileExists = true,
+                Multiselect = false
+            };
+
+            if (dialog.ShowDialog() != true)
+            {
+                ActivationStatusText.Text = "Restore cancelled.";
+                return;
+            }
+
             string productKey = ExtractProductKey(File.ReadAllText(dialog.FileName, Encoding.UTF8).Trim());
-            if (!ProductKeyDecoder.IsProductKey(productKey)) throw new InvalidDataException("The selected backup does not contain a usable Windows product key.");
-            if (MessageBox.Show($"Restore this exact product key?\n\n{productKey}", "Restore & Activate Windows", MessageBoxButton.YesNo, MessageBoxImage.Question) != MessageBoxResult.Yes) return;
-            ActivationStatusText.Text = "Restoring selected product key and activating Windows...";
+            if (!ProductKeyDecoder.IsProductKey(productKey))
+                throw new InvalidDataException($"The selected {keyType} backup does not contain a usable Windows product key.");
+
+            string fileName = Path.GetFileNameWithoutExtension(dialog.FileName);
+            if (!fileName.StartsWith(expectedFileHint, StringComparison.OrdinalIgnoreCase))
+            {
+                MessageBoxResult mismatch = MessageBox.Show(
+                    $"You selected {keyType}, but this file name does not appear to be a {keyType} backup.\n\nFile: {Path.GetFileName(dialog.FileName)}\n\nRestore it anyway?",
+                    "Backup Type Check",
+                    MessageBoxButton.YesNo,
+                    MessageBoxImage.Warning);
+                if (mismatch != MessageBoxResult.Yes)
+                {
+                    ActivationStatusText.Text = "Restore cancelled.";
+                    return;
+                }
+            }
+
+            if (MessageBox.Show($"Restore this {keyType} product key?\n\n{productKey}", "Restore & Activate Windows", MessageBoxButton.YesNo, MessageBoxImage.Question) != MessageBoxResult.Yes)
+                return;
+
+            ActivationStatusText.Text = $"Restoring selected {keyType} product key and activating Windows...";
             Cursor = Cursors.Wait;
             int exitCode = await RunRestoreScriptAsync(productKey);
             Cursor = null;
-            ActivationStatusText.Text = exitCode == 0 ? "Restore and activation completed." : $"Restore finished with exit code {exitCode}.";
+            ActivationStatusText.Text = exitCode == 0 ? $"{keyType} key restored and activation completed." : $"Restore finished with exit code {exitCode}.";
             RefreshReport();
         }
         catch (System.ComponentModel.Win32Exception ex) when (ex.NativeErrorCode == 1223) { Cursor = null; ActivationStatusText.Text = "Restore cancelled."; }
