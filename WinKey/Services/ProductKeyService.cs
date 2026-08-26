@@ -6,30 +6,25 @@ namespace WinKey.Services;
 public static class ProductKeyService
 {
     private const string WindowsLicensingApplicationId = "55c92734-d682-4d71-983e-d6ec3f16059f";
-    private const string KeyChars = "BCDFGHJKMPQRTVWXY2346789";
 
     public static string GetInstalledProductKey()
     {
         try
         {
-            using var key = Registry.LocalMachine.OpenSubKey(@"SOFTWARE\Microsoft\Windows NT\CurrentVersion");
-            if (key?.GetValue("DigitalProductId") is not byte[] digitalProductId)
-                return "Not recoverable";
-
-            string modernKey = DecodeProductKey(digitalProductId, true);
-            string legacyKey = DecodeProductKey(digitalProductId, false);
+            ProductKeyDecodeResult result = DecodeInstalledProductKeyCandidates();
             string activePartial = GetActiveWindowsPartialProductKey();
 
             if (!string.IsNullOrWhiteSpace(activePartial))
             {
-                if (modernKey.EndsWith(activePartial, StringComparison.OrdinalIgnoreCase))
-                    return modernKey;
-                if (legacyKey.EndsWith(activePartial, StringComparison.OrdinalIgnoreCase))
-                    return legacyKey;
+                if (result.ModernKeyValid && result.ModernKey.EndsWith(activePartial, StringComparison.OrdinalIgnoreCase))
+                    return result.ModernKey;
+
+                if (result.LegacyKeyValid && result.LegacyKey.EndsWith(activePartial, StringComparison.OrdinalIgnoreCase))
+                    return result.LegacyKey;
             }
 
-            return IsProductKey(modernKey) ? modernKey
-                : IsProductKey(legacyKey) ? legacyKey
+            return result.ModernKeyValid ? result.ModernKey
+                : result.LegacyKeyValid ? result.LegacyKey
                 : "Not recoverable";
         }
         catch
@@ -38,22 +33,27 @@ public static class ProductKeyService
         }
     }
 
-    // This is intentionally separate from GetInstalledProductKey().
-    // Backup must save the decoder output itself, not the displayed/cached
-    // installed key and not a value selected by licence verification logic.
+    // Returns both decoder candidates without silently replacing either result.
+    // This is used for debugging and lets the UI/backup flow explicitly choose
+    // which decoder output should be displayed or saved.
+    public static ProductKeyDecodeResult DecodeInstalledProductKeyCandidates()
+    {
+        using var key = Registry.LocalMachine.OpenSubKey(@"SOFTWARE\Microsoft\Windows NT\CurrentVersion");
+        if (key?.GetValue("DigitalProductId") is not byte[] digitalProductId)
+            return new ProductKeyDecodeResult(string.Empty, string.Empty, false, false);
+
+        return ProductKeyDecoder.Decode(digitalProductId);
+    }
+
+    // Backup must save this raw decoder output, not a displayed or cached key.
+    // The modern candidate is intentionally returned directly so there is no
+    // licence-verification or UI substitution in this path.
     public static string GetDecodedInstalledProductKey()
     {
         try
         {
-            using var key = Registry.LocalMachine.OpenSubKey(@"SOFTWARE\Microsoft\Windows NT\CurrentVersion");
-            if (key?.GetValue("DigitalProductId") is not byte[] digitalProductId)
-                return "Not recoverable";
-
-            string decodedKey = DecodeProductKey(digitalProductId, true);
-            if (!IsProductKey(decodedKey))
-                decodedKey = DecodeProductKey(digitalProductId, false);
-
-            return IsProductKey(decodedKey) ? decodedKey : "Not recoverable";
+            ProductKeyDecodeResult result = DecodeInstalledProductKeyCandidates();
+            return result.ModernKeyValid ? result.ModernKey : "Not recoverable";
         }
         catch
         {
@@ -69,7 +69,7 @@ public static class ProductKeyService
             foreach (ManagementObject item in searcher.Get())
             {
                 string? value = item["OA3xOriginalProductKey"]?.ToString()?.Trim();
-                if (IsProductKey(value))
+                if (ProductKeyDecoder.IsProductKey(value))
                     return value!;
             }
         }
@@ -100,49 +100,5 @@ public static class ProductKeyService
         catch { }
 
         return string.Empty;
-    }
-
-    private static bool IsProductKey(string? key) =>
-        !string.IsNullOrWhiteSpace(key) &&
-        System.Text.RegularExpressions.Regex.IsMatch(key.Trim(), @"(?i)^[A-Z0-9]{5}(?:-[A-Z0-9]{5}){4}$");
-
-    private static string DecodeProductKey(byte[] digitalProductId, bool useWindows8Algorithm)
-    {
-        const int keyStart = 52;
-        const int keyLength = 15;
-
-        if (digitalProductId.Length < keyStart + keyLength || digitalProductId.Length <= 66)
-            return string.Empty;
-
-        byte[] keyBytes = digitalProductId.Skip(keyStart).Take(keyLength).ToArray();
-        int last = 0;
-        char[] decoded = new char[25];
-
-        for (int i = 24; i >= 0; i--)
-        {
-            int current = 0;
-            for (int j = 14; j >= 0; j--)
-            {
-                current = current * 256 + keyBytes[j];
-                keyBytes[j] = (byte)(current / 24);
-                current %= 24;
-            }
-
-            decoded[i] = KeyChars[current];
-            last = current;
-        }
-
-        string result = new(decoded);
-
-        if (useWindows8Algorithm && ((digitalProductId[66] / 6) & 1) == 1)
-        {
-            result = result.Remove(0, 1).Insert(Math.Clamp(last, 0, 24), "N");
-        }
-
-        if (result.Length != 25)
-            return string.Empty;
-
-        return string.Join("-", Enumerable.Range(0, 5)
-            .Select(group => result.Substring(group * 5, 5)));
     }
 }
