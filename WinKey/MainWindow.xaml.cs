@@ -61,53 +61,24 @@ public partial class MainWindow : Window
         finally { Cursor = null; }
     }
 
-    private async void CheckActivationStatus_Click(object sender, RoutedEventArgs e)
+    private void CheckActivationStatus_Click(object sender, RoutedEventArgs e)
     {
         try
         {
-            CheckActivationStatusButton.IsEnabled = false;
-            ActivationStatusText.Text = "Checking detailed activation status...";
-
-            string scriptPath = Path.Combine(AppContext.BaseDirectory, "Check_Activation_Status.cmd");
-            if (!File.Exists(scriptPath))
-                throw new FileNotFoundException("Check_Activation_Status.cmd was not found next to WinKey.exe.", scriptPath);
-
-            var startInfo = new ProcessStartInfo
+            Process.Start(new ProcessStartInfo
             {
                 FileName = "cmd.exe",
-                Arguments = $"/c \"\"{scriptPath}\"\"",
-                WorkingDirectory = AppContext.BaseDirectory,
-                UseShellExecute = false,
-                RedirectStandardOutput = true,
-                RedirectStandardError = true,
-                CreateNoWindow = true
-            };
+                Arguments = "/k slmgr /xpr",
+                UseShellExecute = true
+            });
 
-            using var process = new Process { StartInfo = startInfo };
-            var output = new StringBuilder();
-            process.OutputDataReceived += (_, args) => { if (args.Data != null) Dispatcher.Invoke(() => output.AppendLine(args.Data)); };
-            process.ErrorDataReceived += (_, args) => { if (args.Data != null) Dispatcher.Invoke(() => output.AppendLine(args.Data)); };
-
-            process.Start();
-            process.BeginOutputReadLine();
-            process.BeginErrorReadLine();
-            await process.WaitForExitAsync();
-
-            string result = output.ToString().Trim();
-            if (string.IsNullOrWhiteSpace(result))
-                result = $"The activation status script finished with exit code {process.ExitCode}, but returned no readable output.";
-
-            ActivationInfoBox.Text = result;
-            ActivationStatusText.Text = process.ExitCode == 0
-                ? "Activation status check finished."
-                : $"Activation status check finished with exit code {process.ExitCode}.";
+            ActivationStatusText.Text = "Activation status opened in Command Prompt.";
         }
         catch (Exception ex)
         {
             ActivationInfoBox.Text = $"ERROR\r\n\r\n{ex}";
-            ActivationStatusText.Text = "Activation status check failed.";
+            ActivationStatusText.Text = "Could not open Command Prompt.";
         }
-        finally { CheckActivationStatusButton.IsEnabled = true; }
     }
 
     private void BackupWindowsKey_Click(object sender, RoutedEventArgs e)
