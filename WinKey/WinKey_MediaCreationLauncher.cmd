@@ -2,6 +2,8 @@
 setlocal EnableExtensions
 
 set "SOURCE=%~dp0MediaCreationTool.bat"
+set "BUNDLED22H2=%~dp022H2"
+set "WORK=%SystemDrive%\ESD\MCT"
 set "PATCHED=%TEMP%\WinKey-MediaCreationTool-%RANDOM%%RANDOM%.bat"
 
 if not exist "%SOURCE%" (
@@ -10,6 +12,41 @@ if not exist "%SOURCE%" (
     pause
     exit /b 1
 )
+
+if not exist "%BUNDLED22H2%\MediaCreationTool_22H2.exe" (
+    echo ERROR: Bundled Windows 10 22H2 Media Creation Tool was not found:
+    echo %BUNDLED22H2%\MediaCreationTool_22H2.exe
+    echo.
+    pause
+    exit /b 1
+)
+
+if not exist "%BUNDLED22H2%\products.cab" (
+    echo ERROR: Bundled Windows 10 22H2 products.cab was not found:
+    echo %BUNDLED22H2%\products.cab
+    echo.
+    pause
+    exit /b 1
+)
+
+mkdir "%WORK%" >nul 2>nul
+copy /y "%BUNDLED22H2%\MediaCreationTool_22H2.exe" "%WORK%\MediaCreationTool22H2.exe" >nul
+if errorlevel 1 (
+    echo ERROR: Could not prepare the bundled Windows 10 22H2 Media Creation Tool.
+    echo.
+    pause
+    exit /b 1
+)
+
+copy /y "%BUNDLED22H2%\products.cab" "%WORK%\products22H2.cab" >nul
+if errorlevel 1 (
+    echo ERROR: Could not prepare the bundled Windows 10 22H2 products catalog.
+    echo.
+    pause
+    exit /b 1
+)
+
+echo Bundled Windows 10 22H2 files prepared. Selecting 22H2 will use these local files instead of downloading them.
 
 copy /y "%SOURCE%" "%PATCHED%" >nul
 if errorlevel 1 (
