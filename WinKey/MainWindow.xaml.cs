@@ -95,12 +95,12 @@ public partial class MainWindow : Window
 
             string keyType = choiceDialog.SelectedChoice == KeyBackupChoiceWindow.KeyChoice.Oem ? "OEM" : "Installed";
 
-            // Read the key fresh at backup time instead of using the report cached
-            // when the application first opened. This guarantees the backup uses
-            // the current decoder output.
+            // OEM backups use the firmware key. Installed-key backups deliberately
+            // use the raw decoder output, not the key displayed in the report and
+            // not any cached/licence-verified value.
             string key = choiceDialog.SelectedChoice == KeyBackupChoiceWindow.KeyChoice.Oem
                 ? ProductKeyService.GetOemProductKey().Trim()
-                : ProductKeyService.GetInstalledProductKey().Trim();
+                : ProductKeyService.GetDecodedInstalledProductKey().Trim();
 
             if (!IsUsableProductKey(key))
             {
@@ -115,7 +115,7 @@ public partial class MainWindow : Window
             if (dialog.ShowDialog() != true) return;
 
             File.WriteAllText(dialog.FileName, key, new UTF8Encoding(false));
-            MessageBox.Show($"{keyType} Windows product key backup created successfully.\n\nKey saved: {key}", "Backup Complete", MessageBoxButton.OK, MessageBoxImage.Information);
+            MessageBox.Show($"{keyType} Windows product key backup created successfully.\n\nDecoded key saved: {key}", "Backup Complete", MessageBoxButton.OK, MessageBoxImage.Information);
             RefreshReport();
         }
         catch (Exception ex) { MessageBox.Show(ex.Message, "Backup Failed", MessageBoxButton.OK, MessageBoxImage.Error); }
