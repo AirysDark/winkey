@@ -1,50 +1,40 @@
 using System.Windows;
+using WinKey.Services;
 
 namespace WinKey;
 
 public partial class KeyBackupChoiceWindow : Window
 {
-    public enum KeyChoice
-    {
-        None,
-        Installed,
-        Oem
-    }
+    public enum KeyChoice { None, Modern, Legacy, Oem }
+    public KeyChoice SelectedChoice { get; private set; } = KeyChoice.Modern;
+    public string SelectedKey { get; private set; } = string.Empty;
 
-    public KeyChoice SelectedChoice { get; private set; } = KeyChoice.Installed;
-
-    public KeyBackupChoiceWindow()
+    public KeyBackupChoiceWindow(ProductKeyDecodeResult results, string oemKey)
     {
         InitializeComponent();
-        InstalledKeyOption.IsEnabled = true;
-        OemKeyOption.IsEnabled = true;
-        InstalledKeyOption.IsChecked = true;
-    }
-
-    private void InstalledKeyOption_Click(object sender, RoutedEventArgs e)
-    {
-        InstalledKeyOption.IsChecked = true;
-        OemKeyOption.IsChecked = false;
-    }
-
-    private void OemKeyOption_Click(object sender, RoutedEventArgs e)
-    {
-        OemKeyOption.IsChecked = true;
-        InstalledKeyOption.IsChecked = false;
+        ModernKeyText.Text = results.ModernKeyValid ? results.ModernKey : "Not recoverable";
+        LegacyKeyText.Text = results.LegacyKeyValid ? results.LegacyKey : "Not recoverable";
+        OemKeyText.Text = ProductKeyDecoder.IsProductKey(oemKey) ? oemKey : "No embedded OEM/UEFI key found";
+        ModernKeyOption.IsEnabled = results.ModernKeyValid;
+        LegacyKeyOption.IsEnabled = results.LegacyKeyValid;
+        OemKeyOption.IsEnabled = ProductKeyDecoder.IsProductKey(oemKey);
+        if (!results.ModernKeyValid && results.LegacyKeyValid) LegacyKeyOption.IsChecked = true;
+        else if (!results.ModernKeyValid && !results.LegacyKeyValid && OemKeyOption.IsEnabled) OemKeyOption.IsChecked = true;
     }
 
     private void Continue_Click(object sender, RoutedEventArgs e)
     {
-        SelectedChoice = OemKeyOption.IsChecked == true
-            ? KeyChoice.Oem
-            : KeyChoice.Installed;
-
-        DialogResult = true;
+        if (ModernKeyOption.IsChecked == true) { SelectedChoice = KeyChoice.Modern; SelectedKey = ModernKeyText.Text.Trim(); }
+        else if (LegacyKeyOption.IsChecked == true) { SelectedChoice = KeyChoice.Legacy; SelectedKey = LegacyKeyText.Text.Trim(); }
+        else if (OemKeyOption.IsChecked == true) { SelectedChoice = KeyChoice.Oem; SelectedKey = OemKeyText.Text.Trim(); }
+        else { SelectedChoice = KeyChoice.None; SelectedKey = string.Empty; }
+        DialogResult = ProductKeyDecoder.IsProductKey(SelectedKey);
     }
 
     private void Cancel_Click(object sender, RoutedEventArgs e)
     {
         SelectedChoice = KeyChoice.None;
+        SelectedKey = string.Empty;
         DialogResult = false;
     }
 }
