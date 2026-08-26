@@ -1,21 +1,195 @@
-<Window x:Class="WinKey.MainWindow" xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation" xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml" Title="WinKey - Windows Reinstall Information" Height="720" Width="1050" MinHeight="600" MinWidth="850">
-  <Grid Margin="16">
-    <Grid.RowDefinitions><RowDefinition Height="Auto"/><RowDefinition Height="*"/><RowDefinition Height="Auto"/></Grid.RowDefinitions>
-    <StackPanel Grid.Row="0" Margin="0,0,0,12">
-      <TextBlock Text="WinKey" FontSize="30" FontWeight="Bold"/>
-      <TextBlock Text="Windows product key, activation and computer information for reinstallation." Opacity="0.7"/>
-    </StackPanel>
-    <TabControl Grid.Row="1">
-      <TabItem Header="Windows &amp; Licence"><ScrollViewer><StackPanel Margin="16"><TextBlock Text="Windows Information" FontSize="20" FontWeight="Bold"/><TextBox x:Name="WindowsInfoBox" Margin="0,10,0,12" FontFamily="Consolas" FontSize="14" IsReadOnly="True" TextWrapping="Wrap" VerticalScrollBarVisibility="Auto" Height="420"/><TextBlock Text="Recovered keys should be kept private. A digital licence may activate Windows without a recoverable 25-character key." TextWrapping="Wrap" Opacity="0.75"/></StackPanel></ScrollViewer></TabItem>
-      <TabItem Header="Hardware"><ScrollViewer><StackPanel Margin="16"><TextBlock Text="Hardware Information" FontSize="20" FontWeight="Bold"/><TextBox x:Name="HardwareInfoBox" Margin="0,10,0,12" FontFamily="Consolas" FontSize="14" IsReadOnly="True" TextWrapping="Wrap" VerticalScrollBarVisibility="Auto" Height="500"/></StackPanel></ScrollViewer></TabItem>
-      <TabItem Header="Network"><ScrollViewer><StackPanel Margin="16"><TextBlock Text="Network Information" FontSize="20" FontWeight="Bold"/><TextBox x:Name="NetworkInfoBox" Margin="0,10,0,12" FontFamily="Consolas" FontSize="14" IsReadOnly="True" TextWrapping="Wrap" VerticalScrollBarVisibility="Auto" Height="500"/></StackPanel></ScrollViewer></TabItem>
-      <TabItem Header="Full Report"><Grid Margin="16"><TextBox x:Name="ReportBox" FontFamily="Consolas" FontSize="13" IsReadOnly="True" TextWrapping="Wrap" VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Auto"/></Grid></TabItem>
-    </TabControl>
-    <StackPanel Grid.Row="2" Orientation="Horizontal" HorizontalAlignment="Right" Margin="0,12,0,0">
-      <Button Content="Refresh" Width="100" Margin="4" Click="Refresh_Click"/>
-      <Button Content="Copy All" Width="100" Margin="4" Click="CopyAll_Click"/>
-      <Button Content="Export TXT" Width="100" Margin="4" Click="ExportTxt_Click"/>
-      <Button Content="Export JSON" Width="100" Margin="4" Click="ExportJson_Click"/>
-    </StackPanel>
-  </Grid>
+<Window x:Class="WinKey.MainWindow"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:shell="clr-namespace:System.Windows.Shell;assembly=PresentationFramework"
+        Title="WinKey"
+        Height="720" Width="1120" MinHeight="600" MinWidth="850"
+        Background="{DynamicResource ADBgBrush}"
+        Foreground="{DynamicResource ADTextBrush}"
+        WindowStyle="None" ResizeMode="CanResize">
+
+    <Window.Resources>
+        <Color x:Key="ADBg">#0B0F14</Color>
+        <Color x:Key="ADPanel">#121922</Color>
+        <Color x:Key="ADPanel2">#0F151D</Color>
+        <Color x:Key="ADBorder">#223040</Color>
+        <Color x:Key="ADBorderSoft">#1A2431</Color>
+        <Color x:Key="ADText">#E6E6E6</Color>
+        <Color x:Key="ADTextDim">#9FB0C3</Color>
+        <Color x:Key="ADAccent">#FF6A00</Color>
+        <Color x:Key="ADAccent2">#FF8A2A</Color>
+        <Color x:Key="ADDanger">#FF4D4D</Color>
+        <Color x:Key="ADInput">#0C1219</Color>
+        <Color x:Key="ADConsole">#070B10</Color>
+        <Color x:Key="ADHover">#1E2A3B</Color>
+        <Color x:Key="ADSelected">#182231</Color>
+        <Color x:Key="ADPressed">#0F1621</Color>
+        <Color x:Key="ADConsoleText">#D7E3F1</Color>
+        <Color x:Key="ADTitleButton">#101826</Color>
+        <Color x:Key="ADTitleQuit">#2A1416</Color>
+        <Color x:Key="ADTitleQuitText">#FFD7D7</Color>
+        <Color x:Key="ADDangerButton">#3A1D1D</Color>
+        <Color x:Key="ADAccentButtonText">#101010</Color>
+
+        <SolidColorBrush x:Key="ADBgBrush" Color="{StaticResource ADBg}"/>
+        <SolidColorBrush x:Key="ADPanelBrush" Color="{StaticResource ADPanel}"/>
+        <SolidColorBrush x:Key="ADPanel2Brush" Color="{StaticResource ADPanel2}"/>
+        <SolidColorBrush x:Key="ADBorderBrush" Color="{StaticResource ADBorder}"/>
+        <SolidColorBrush x:Key="ADBorderSoftBrush" Color="{StaticResource ADBorderSoft}"/>
+        <SolidColorBrush x:Key="ADTextBrush" Color="{StaticResource ADText}"/>
+        <SolidColorBrush x:Key="ADTextDimBrush" Color="{StaticResource ADTextDim}"/>
+        <SolidColorBrush x:Key="ADAccentBrush" Color="{StaticResource ADAccent}"/>
+        <SolidColorBrush x:Key="ADAccent2Brush" Color="{StaticResource ADAccent2}"/>
+        <SolidColorBrush x:Key="ADDangerBrush" Color="{StaticResource ADDanger}"/>
+        <SolidColorBrush x:Key="ADInputBrush" Color="{StaticResource ADInput}"/>
+        <SolidColorBrush x:Key="ADConsoleBrush" Color="{StaticResource ADConsole}"/>
+        <SolidColorBrush x:Key="ADHoverBrush" Color="{StaticResource ADHover}"/>
+        <SolidColorBrush x:Key="ADSelectedBrush" Color="{StaticResource ADSelected}"/>
+        <SolidColorBrush x:Key="ADPressedBrush" Color="{StaticResource ADPressed}"/>
+        <SolidColorBrush x:Key="ADConsoleTextBrush" Color="{StaticResource ADConsoleText}"/>
+        <SolidColorBrush x:Key="ADTitleButtonBrush" Color="{StaticResource ADTitleButton}"/>
+        <SolidColorBrush x:Key="ADTitleQuitBrush" Color="{StaticResource ADTitleQuit}"/>
+        <SolidColorBrush x:Key="ADTitleQuitTextBrush" Color="{StaticResource ADTitleQuitText}"/>
+        <SolidColorBrush x:Key="ADDangerButtonBrush" Color="{StaticResource ADDangerButton}"/>
+        <SolidColorBrush x:Key="ADAccentButtonTextBrush" Color="{StaticResource ADAccentButtonText}"/>
+
+        <Style x:Key="Card" TargetType="Border">
+            <Setter Property="Background" Value="{DynamicResource ADPanelBrush}"/>
+            <Setter Property="BorderBrush" Value="{DynamicResource ADBorderSoftBrush}"/>
+            <Setter Property="BorderThickness" Value="1"/>
+            <Setter Property="CornerRadius" Value="10"/>
+            <Setter Property="Padding" Value="14"/>
+        </Style>
+
+        <Style x:Key="ADButton" TargetType="Button">
+            <Setter Property="Foreground" Value="{DynamicResource ADTextBrush}"/>
+            <Setter Property="Background" Value="{DynamicResource ADSelectedBrush}"/>
+            <Setter Property="BorderBrush" Value="{DynamicResource ADBorderBrush}"/>
+            <Setter Property="BorderThickness" Value="1"/>
+            <Setter Property="Padding" Value="14,7"/>
+            <Setter Property="MinHeight" Value="34"/>
+            <Setter Property="FontWeight" Value="SemiBold"/>
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="Button">
+                        <Border x:Name="Root" Background="{TemplateBinding Background}" BorderBrush="{TemplateBinding BorderBrush}" BorderThickness="{TemplateBinding BorderThickness}" CornerRadius="12" Padding="{TemplateBinding Padding}">
+                            <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                        </Border>
+                        <ControlTemplate.Triggers>
+                            <Trigger Property="IsMouseOver" Value="True"><Setter TargetName="Root" Property="Background" Value="{DynamicResource ADHoverBrush}"/></Trigger>
+                            <Trigger Property="IsPressed" Value="True"><Setter TargetName="Root" Property="Background" Value="{DynamicResource ADPressedBrush}"/></Trigger>
+                            <Trigger Property="IsEnabled" Value="False"><Setter TargetName="Root" Property="Opacity" Value="0.55"/></Trigger>
+                        </ControlTemplate.Triggers>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+
+        <Style x:Key="AccentButton" TargetType="Button" BasedOn="{StaticResource ADButton}">
+            <Setter Property="Background" Value="{DynamicResource ADAccentBrush}"/>
+            <Setter Property="BorderBrush" Value="{DynamicResource ADAccent2Brush}"/>
+            <Setter Property="Foreground" Value="{DynamicResource ADAccentButtonTextBrush}"/>
+        </Style>
+
+        <Style x:Key="DangerButton" TargetType="Button" BasedOn="{StaticResource ADButton}">
+            <Setter Property="Background" Value="{DynamicResource ADDangerButtonBrush}"/>
+            <Setter Property="BorderBrush" Value="{DynamicResource ADDangerBrush}"/>
+        </Style>
+
+        <Style x:Key="Console" TargetType="TextBox">
+            <Setter Property="Background" Value="{DynamicResource ADConsoleBrush}"/>
+            <Setter Property="Foreground" Value="{DynamicResource ADConsoleTextBrush}"/>
+            <Setter Property="BorderBrush" Value="{DynamicResource ADBorderBrush}"/>
+            <Setter Property="BorderThickness" Value="1"/>
+            <Setter Property="Padding" Value="10"/>
+            <Setter Property="FontFamily" Value="Consolas"/>
+            <Setter Property="FontSize" Value="13"/>
+            <Setter Property="IsReadOnly" Value="True"/>
+            <Setter Property="VerticalScrollBarVisibility" Value="Auto"/>
+            <Setter Property="HorizontalScrollBarVisibility" Value="Auto"/>
+            <Setter Property="TextWrapping" Value="NoWrap"/>
+        </Style>
+
+        <Style x:Key="ADTabItem" TargetType="TabItem">
+            <Setter Property="Foreground" Value="{DynamicResource ADTextDimBrush}"/>
+            <Setter Property="Padding" Value="16,9"/>
+            <Setter Property="Background" Value="Transparent"/>
+            <Setter Property="BorderBrush" Value="Transparent"/>
+            <Style.Triggers>
+                <Trigger Property="IsSelected" Value="True">
+                    <Setter Property="Foreground" Value="{DynamicResource ADTextBrush}"/>
+                    <Setter Property="Background" Value="{DynamicResource ADSelectedBrush}"/>
+                    <Setter Property="BorderBrush" Value="{DynamicResource ADAccentBrush}"/>
+                </Trigger>
+            </Style.Triggers>
+        </Style>
+    </Window.Resources>
+
+    <shell:WindowChrome.WindowChrome>
+        <shell:WindowChrome CaptionHeight="38" ResizeBorderThickness="6" CornerRadius="0" GlassFrameThickness="0" UseAeroCaptionButtons="False"/>
+    </shell:WindowChrome.WindowChrome>
+
+    <Grid Background="{DynamicResource ADBgBrush}">
+        <Grid.RowDefinitions>
+            <RowDefinition Height="38"/>
+            <RowDefinition Height="*"/>
+        </Grid.RowDefinitions>
+
+        <Border Grid.Row="0" Background="{DynamicResource ADPanel2Brush}" BorderBrush="{DynamicResource ADBorderSoftBrush}" BorderThickness="0,0,0,1" MouseLeftButtonDown="TitleBar_MouseLeftButtonDown">
+            <Grid>
+                <Grid.ColumnDefinitions><ColumnDefinition Width="*"/><ColumnDefinition Width="92"/><ColumnDefinition Width="92"/><ColumnDefinition Width="92"/></Grid.ColumnDefinitions>
+                <StackPanel Orientation="Horizontal" VerticalAlignment="Center" Margin="12,0,0,0">
+                    <Border Width="22" Height="22" CornerRadius="6" Background="{DynamicResource ADAccentBrush}" Margin="0,0,9,0"><TextBlock Text="W" Foreground="{DynamicResource ADAccentButtonTextBrush}" FontWeight="Bold" HorizontalAlignment="Center" VerticalAlignment="Center"/></Border>
+                    <TextBlock Text="WinKey" FontWeight="SemiBold" FontSize="14" VerticalAlignment="Center"/>
+                    <TextBlock Text="Windows Reinstall Information" Foreground="{DynamicResource ADTextDimBrush}" FontSize="12" VerticalAlignment="Center" Margin="10,0,0,0"/>
+                </StackPanel>
+                <Button Grid.Column="1" Content="—  Minimize" Style="{StaticResource ADButton}" Background="{DynamicResource ADTitleButtonBrush}" Padding="8,4" Click="Minimize_Click"/>
+                <Button Grid.Column="2" Content="▣  Maximize" Style="{StaticResource ADButton}" Background="{DynamicResource ADTitleButtonBrush}" Padding="8,4" Click="MaximizeRestore_Click"/>
+                <Button Grid.Column="3" Content="×  Close" Style="{StaticResource DangerButton}" Background="{DynamicResource ADTitleQuitBrush}" Foreground="{DynamicResource ADTitleQuitTextBrush}" Padding="8,4" Click="Close_Click"/>
+            </Grid>
+        </Border>
+
+        <Grid Grid.Row="1" Margin="14">
+            <Grid.ColumnDefinitions><ColumnDefinition Width="320"/><ColumnDefinition Width="12"/><ColumnDefinition Width="*"/></Grid.ColumnDefinitions>
+
+            <StackPanel Grid.Column="0">
+                <Border Style="{StaticResource Card}" Margin="0,0,0,12">
+                    <StackPanel>
+                        <TextBlock Text="Windows &amp; Licence" FontSize="18" FontWeight="SemiBold"/>
+                        <TextBlock Text="Product key, activation and reinstall details." Foreground="{DynamicResource ADTextDimBrush}" Margin="0,5,0,12" TextWrapping="Wrap"/>
+                        <TextBlock Text="Recovered keys should be kept private. Digital licences may activate Windows without a recoverable 25-character key." Foreground="{DynamicResource ADTextDimBrush}" TextWrapping="Wrap"/>
+                    </StackPanel>
+                </Border>
+                <Border Style="{StaticResource Card}">
+                    <StackPanel>
+                        <TextBlock Text="Actions" FontSize="18" FontWeight="SemiBold" Margin="0,0,0,10"/>
+                        <Button Content="Refresh Information" Style="{StaticResource AccentButton}" Click="Refresh_Click" Margin="0,0,0,8"/>
+                        <Button Content="Copy Full Report" Style="{StaticResource ADButton}" Click="CopyAll_Click" Margin="0,0,0,8"/>
+                        <Button Content="Export TXT Report" Style="{StaticResource ADButton}" Click="ExportTxt_Click" Margin="0,0,0,8"/>
+                        <Button Content="Export JSON Report" Style="{StaticResource ADButton}" Click="ExportJson_Click"/>
+                    </StackPanel>
+                </Border>
+            </StackPanel>
+
+            <Border Grid.Column="2" Style="{StaticResource Card}">
+                <Grid>
+                    <Grid.RowDefinitions><RowDefinition Height="Auto"/><RowDefinition Height="*"/></Grid.RowDefinitions>
+                    <TabControl Background="Transparent" BorderThickness="0">
+                        <TabItem Header="Windows &amp; Licence" Style="{StaticResource ADTabItem}">
+                            <TextBox x:Name="WindowsInfoBox" Style="{StaticResource Console}" Margin="0,12,0,0"/>
+                        </TabItem>
+                        <TabItem Header="Hardware" Style="{StaticResource ADTabItem}">
+                            <TextBox x:Name="HardwareInfoBox" Style="{StaticResource Console}" Margin="0,12,0,0"/>
+                        </TabItem>
+                        <TabItem Header="Network" Style="{StaticResource ADTabItem}">
+                            <TextBox x:Name="NetworkInfoBox" Style="{StaticResource Console}" Margin="0,12,0,0"/>
+                        </TabItem>
+                        <TabItem Header="Full Report" Style="{StaticResource ADTabItem}">
+                            <TextBox x:Name="ReportBox" Style="{StaticResource Console}" Margin="0,12,0,0"/>
+                        </TabItem>
+                    </TabControl>
+                </Grid>
+            </Border>
+        </Grid>
+    </Grid>
 </Window>
