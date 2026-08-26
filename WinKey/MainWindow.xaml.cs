@@ -69,22 +69,10 @@ public partial class MainWindow : Window
         {
             string slmgrPath = Path.Combine(Environment.SystemDirectory, "slmgr.vbs");
             if (!File.Exists(slmgrPath)) throw new FileNotFoundException("Windows activation script slmgr.vbs was not found.", slmgrPath);
-            Process.Start(new ProcessStartInfo
-            {
-                FileName = Path.Combine(Environment.SystemDirectory, "wscript.exe"),
-                Arguments = $"\"{slmgrPath}\" /xpr",
-                WorkingDirectory = Environment.SystemDirectory,
-                UseShellExecute = false,
-                CreateNoWindow = true,
-                WindowStyle = ProcessWindowStyle.Hidden
-            });
+            Process.Start(new ProcessStartInfo { FileName = Path.Combine(Environment.SystemDirectory, "wscript.exe"), Arguments = $"\"{slmgrPath}\" /xpr", WorkingDirectory = Environment.SystemDirectory, UseShellExecute = false, CreateNoWindow = true, WindowStyle = ProcessWindowStyle.Hidden });
             ActivationStatusText.Text = "Activation status opened.";
         }
-        catch (Exception ex)
-        {
-            ActivationInfoBox.Text = $"ERROR\r\n\r\n{ex}";
-            ActivationStatusText.Text = "Could not check activation status.";
-        }
+        catch (Exception ex) { ActivationInfoBox.Text = $"ERROR\r\n\r\n{ex}"; ActivationStatusText.Text = "Could not check activation status."; }
     }
 
     private void CreateWindowsMedia_Click(object sender, RoutedEventArgs e)
@@ -92,171 +80,75 @@ public partial class MainWindow : Window
         try
         {
             string scriptPath = Path.Combine(AppContext.BaseDirectory, "MediaCreationTool.bat");
-            if (!File.Exists(scriptPath))
-            {
-                throw new FileNotFoundException("MediaCreationTool.bat was not found next to WinKey.exe. Rebuild or republish WinKey so the bundled Media Creation Tool is included.", scriptPath);
-            }
-
-            Process.Start(new ProcessStartInfo
-            {
-                FileName = Path.Combine(Environment.SystemDirectory, "cmd.exe"),
-                Arguments = $"/k call \"{scriptPath}\"",
-                WorkingDirectory = AppContext.BaseDirectory,
-                UseShellExecute = true
-            });
+            if (!File.Exists(scriptPath)) throw new FileNotFoundException("MediaCreationTool.bat was not found next to WinKey.exe. Rebuild or republish WinKey so the bundled Media Creation Tool is included.", scriptPath);
+            Process.Start(new ProcessStartInfo { FileName = Path.Combine(Environment.SystemDirectory, "cmd.exe"), Arguments = $"/k call \"{scriptPath}\"", WorkingDirectory = AppContext.BaseDirectory, UseShellExecute = true });
         }
-        catch (Exception ex)
-        {
-            MessageBox.Show("WinKey could not start MediaCreationTool.bat.\n\n" + ex.Message, "Media Creation Failed", MessageBoxButton.OK, MessageBoxImage.Error);
-        }
+        catch (Exception ex) { MessageBox.Show("WinKey could not start MediaCreationTool.bat.\n\n" + ex.Message, "Media Creation Failed", MessageBoxButton.OK, MessageBoxImage.Error); }
     }
 
     private void BackupWindowsKey_Click(object sender, RoutedEventArgs e)
     {
         try
         {
-            _report ??= SystemInfoService.GetReport();
+            var choiceDialog = new KeyBackupChoiceWindow { Owner = this };
+            if (choiceDialog.ShowDialog() != true || choiceDialog.SelectedChoice == KeyBackupChoiceWindow.KeyChoice.None) return;
 
-            var choiceDialog = new KeyBackupChoiceWindow
-            {
-                Owner = this
-            };
+            string keyType = choiceDialog.SelectedChoice == KeyBackupChoiceWindow.KeyChoice.Oem ? "OEM" : "Installed";
 
-            if (choiceDialog.ShowDialog() != true || choiceDialog.SelectedChoice == KeyBackupChoiceWindow.KeyChoice.None)
-                return;
-
-            string keyType = choiceDialog.SelectedChoice == KeyBackupChoiceWindow.KeyChoice.Oem
-                ? "OEM"
-                : "Installed";
-
+            // Read the key fresh at backup time instead of using the report cached
+            // when the application first opened. This guarantees the backup uses
+            // the current decoder output.
             string key = choiceDialog.SelectedChoice == KeyBackupChoiceWindow.KeyChoice.Oem
-                ? _report.OemKey?.Trim() ?? string.Empty
-                : _report.ProductKey?.Trim() ?? string.Empty;
+                ? ProductKeyService.GetOemProductKey().Trim()
+                : ProductKeyService.GetInstalledProductKey().Trim();
 
             if (!IsUsableProductKey(key))
             {
-                MessageBox.Show(
-                    choiceDialog.SelectedChoice == KeyBackupChoiceWindow.KeyChoice.Oem
-                        ? "WinKey could not find a full OEM/UEFI Windows product key to back up."
-                        : "WinKey could not find a full installed Windows product key to back up.",
-                    "No Product Key Found",
-                    MessageBoxButton.OK,
-                    MessageBoxImage.Warning);
+                MessageBox.Show(choiceDialog.SelectedChoice == KeyBackupChoiceWindow.KeyChoice.Oem
+                    ? "WinKey could not find a full OEM/UEFI Windows product key to back up."
+                    : "WinKey could not decode a full installed Windows product key from this Windows installation.",
+                    "No Product Key Found", MessageBoxButton.OK, MessageBoxImage.Warning);
                 return;
             }
 
-            var dialog = new SaveFileDialog
-            {
-                Title = $"Save {keyType} Windows Product Key Backup",
-                Filter = "Windows key backup (*.txt)|*.txt|All files (*.*)|*.*",
-                FileName = $"WindowsKey-{keyType}-{DateTime.Now:yyyyMMdd-HHmmss}.txt",
-                DefaultExt = ".txt",
-                AddExtension = true
-            };
-
+            var dialog = new SaveFileDialog { Title = $"Save {keyType} Windows Product Key Backup", Filter = "Windows key backup (*.txt)|*.txt|All files (*.*)|*.*", FileName = $"WindowsKey-{keyType}-{DateTime.Now:yyyyMMdd-HHmmss}.txt", DefaultExt = ".txt", AddExtension = true };
             if (dialog.ShowDialog() != true) return;
 
             File.WriteAllText(dialog.FileName, key, new UTF8Encoding(false));
-            MessageBox.Show(
-                $"{keyType} Windows product key backup created successfully. The backup file contains only the selected product key.",
-                "Backup Complete",
-                MessageBoxButton.OK,
-                MessageBoxImage.Information);
+            MessageBox.Show($"{keyType} Windows product key backup created successfully.\n\nKey saved: {key}", "Backup Complete", MessageBoxButton.OK, MessageBoxImage.Information);
+            RefreshReport();
         }
-        catch (Exception ex)
-        {
-            MessageBox.Show(ex.Message, "Backup Failed", MessageBoxButton.OK, MessageBoxImage.Error);
-        }
+        catch (Exception ex) { MessageBox.Show(ex.Message, "Backup Failed", MessageBoxButton.OK, MessageBoxImage.Error); }
     }
 
     private async void RestoreWindowsKey_Click(object sender, RoutedEventArgs e)
     {
         try
         {
-            var dialog = new OpenFileDialog
-            {
-                Title = "Select Windows Product Key Backup",
-                Filter = "Windows key backup (*.txt)|*.txt|All files (*.*)|*.*",
-                CheckFileExists = true,
-                Multiselect = false
-            };
-
-            if (dialog.ShowDialog() != true)
-            {
-                ActivationStatusText.Text = "Restore cancelled.";
-                return;
-            }
-
-            string fileContents = File.ReadAllText(dialog.FileName, Encoding.UTF8).Trim();
-            string productKey = ExtractProductKey(fileContents);
-            if (!IsUsableProductKey(productKey))
-                throw new InvalidDataException("The selected backup does not contain a usable Windows product key. The backup file must contain the 25-character product key.");
-
+            var dialog = new OpenFileDialog { Title = "Select Windows Product Key Backup", Filter = "Windows key backup (*.txt)|*.txt|All files (*.*)|*.*", CheckFileExists = true, Multiselect = false };
+            if (dialog.ShowDialog() != true) { ActivationStatusText.Text = "Restore cancelled."; return; }
+            string productKey = ExtractProductKey(File.ReadAllText(dialog.FileName, Encoding.UTF8).Trim());
+            if (!IsUsableProductKey(productKey)) throw new InvalidDataException("The selected backup does not contain a usable Windows product key. The backup file must contain the 25-character product key.");
             string source = Path.GetFileName(dialog.FileName);
-
-            if (MessageBox.Show(
-                    $"Restore the Windows product key from:\n\n{source}\n\n" +
-                    $"Product key: {productKey}\n\n" +
-                    "WinKey will install the selected product key and then ask Windows to activate using Microsoft's normal activation service.",
-                    "Restore & Activate Windows",
-                    MessageBoxButton.YesNo,
-                    MessageBoxImage.Question) != MessageBoxResult.Yes)
-            {
-                ActivationStatusText.Text = "Restore cancelled.";
-                return;
-            }
-
+            if (MessageBox.Show($"Restore the Windows product key from:\n\n{source}\n\nProduct key: {productKey}\n\nWinKey will install the selected product key and then ask Windows to activate using Microsoft's normal activation service.", "Restore & Activate Windows", MessageBoxButton.YesNo, MessageBoxImage.Question) != MessageBoxResult.Yes) { ActivationStatusText.Text = "Restore cancelled."; return; }
             ActivationStatusText.Text = "Restoring selected product key and activating Windows...";
             Cursor = Cursors.Wait;
             int exitCode = await RunRestoreScriptAsync(productKey);
             Cursor = null;
-
             switch (exitCode)
             {
-                case 0:
-                    ActivationStatusText.Text = "Restore and activation completed. Review the Windows Script Host status dialog.";
-                    RefreshReport();
-                    break;
-                case 2:
-                    ActivationStatusText.Text = "The selected backup does not contain a usable Windows product key.";
-                    MessageBox.Show("The selected backup does not contain a usable Windows product key.", "No Product Key Found", MessageBoxButton.OK, MessageBoxImage.Warning);
-                    break;
-                case 10:
-                    ActivationStatusText.Text = "Windows could not install the selected product key.";
-                    MessageBox.Show("Windows could not install the selected product key. Make sure it matches the installed Windows edition.", "Restore Failed", MessageBoxButton.OK, MessageBoxImage.Error);
-                    break;
-                case 11:
-                    ActivationStatusText.Text = "The key was restored, but Windows could not activate automatically.";
-                    MessageBox.Show("The product key was restored, but Windows could not activate automatically. Check your internet connection and Windows Activation settings.", "Activation Required", MessageBoxButton.OK, MessageBoxImage.Warning);
-                    RefreshReport();
-                    break;
-                default:
-                    ActivationStatusText.Text = "Restore failed.";
-                    MessageBox.Show("The Windows restore script failed. Exit code: " + exitCode, "Restore Failed", MessageBoxButton.OK, MessageBoxImage.Error);
-                    break;
+                case 0: ActivationStatusText.Text = "Restore and activation completed. Review the Windows Script Host status dialog."; RefreshReport(); break;
+                case 2: ActivationStatusText.Text = "The selected backup does not contain a usable Windows product key."; MessageBox.Show("The selected backup does not contain a usable Windows product key.", "No Product Key Found", MessageBoxButton.OK, MessageBoxImage.Warning); break;
+                case 10: ActivationStatusText.Text = "Windows could not install the selected product key."; MessageBox.Show("Windows could not install the selected product key. Make sure it matches the installed Windows edition.", "Restore Failed", MessageBoxButton.OK, MessageBoxImage.Error); break;
+                case 11: ActivationStatusText.Text = "The key was restored, but Windows could not activate automatically."; MessageBox.Show("The product key was restored, but Windows could not activate automatically. Check your internet connection and Windows Activation settings.", "Activation Required", MessageBoxButton.OK, MessageBoxImage.Warning); RefreshReport(); break;
+                default: ActivationStatusText.Text = "Restore failed."; MessageBox.Show("The Windows restore script failed. Exit code: " + exitCode, "Restore Failed", MessageBoxButton.OK, MessageBoxImage.Error); break;
             }
         }
-        catch (System.ComponentModel.Win32Exception ex) when (ex.NativeErrorCode == 1223)
-        {
-            Cursor = null;
-            ActivationStatusText.Text = "Restore cancelled.";
-            MessageBox.Show("Administrator permission was cancelled.", "Restore Cancelled", MessageBoxButton.OK, MessageBoxImage.Information);
-        }
-        catch (Exception ex)
-        {
-            Cursor = null;
-            ActivationStatusText.Text = "Restore failed.";
-            MessageBox.Show(ex.Message, "Restore Failed", MessageBoxButton.OK, MessageBoxImage.Error);
-        }
+        catch (System.ComponentModel.Win32Exception ex) when (ex.NativeErrorCode == 1223) { Cursor = null; ActivationStatusText.Text = "Restore cancelled."; MessageBox.Show("Administrator permission was cancelled.", "Restore Cancelled", MessageBoxButton.OK, MessageBoxImage.Information); }
+        catch (Exception ex) { Cursor = null; ActivationStatusText.Text = "Restore failed."; MessageBox.Show(ex.Message, "Restore Failed", MessageBoxButton.OK, MessageBoxImage.Error); }
     }
 
-    private static string ExtractProductKey(string text)
-    {
-        if (string.IsNullOrWhiteSpace(text)) return string.Empty;
-
-        Match match = Regex.Match(text, @"(?i)\b[A-Z0-9]{5}(?:-[A-Z0-9]{5}){4}\b");
-        return match.Success ? match.Value.ToUpperInvariant() : string.Empty;
-    }
+    private static string ExtractProductKey(string text) => string.IsNullOrWhiteSpace(text) ? string.Empty : (Regex.Match(text, @"(?i)\b[A-Z0-9]{5}(?:-[A-Z0-9]{5}){4}\b") is Match match && match.Success ? match.Value.ToUpperInvariant() : string.Empty);
 
     private static async Task<int> RunRestoreScriptAsync(string productKey)
     {
@@ -267,8 +159,7 @@ public partial class MainWindow : Window
         var psi = new ProcessStartInfo { FileName = powershellPath, Arguments = $"-NoProfile -ExecutionPolicy Bypass -WindowStyle Hidden -File \"{scriptPath}\" -ProductKey \"{productKey}\"", WorkingDirectory = AppContext.BaseDirectory, UseShellExecute = true, Verb = "runas", WindowStyle = ProcessWindowStyle.Hidden };
         using Process? process = Process.Start(psi);
         if (process == null) throw new InvalidOperationException("Could not start the Windows restore script.");
-        await process.WaitForExitAsync();
-        return process.ExitCode;
+        await process.WaitForExitAsync(); return process.ExitCode;
     }
 
     private static bool IsUsableProductKey(string? key) => !string.IsNullOrWhiteSpace(key) && Regex.IsMatch(key.Trim(), @"(?i)^[A-Z0-9]{5}(?:-[A-Z0-9]{5}){4}$");
@@ -280,21 +171,8 @@ public partial class MainWindow : Window
         int foundCount = DriverInstallers.Count(name => File.Exists(Path.Combine(driverFolder, name)));
         if (foundCount == 0) { MessageBox.Show("No matching HP driver installers were found in hp-drivers.", "WinKey - No Drivers Found", MessageBoxButton.OK, MessageBoxImage.Warning); return; }
         if (MessageBox.Show($"WinKey found {foundCount} driver installer(s). Each will run one at a time and WinKey will wait for each installer to exit. Begin?", "Install HP Drivers", MessageBoxButton.YesNo, MessageBoxImage.Question) != MessageBoxResult.Yes) return;
-        InstallDriversButton.IsEnabled = false;
-        var log = new StringBuilder();
-        try
-        {
-            for (int i = 0; i < DriverInstallers.Length; i++)
-            {
-                string name = DriverInstallers[i]; string path = Path.Combine(driverFolder, name);
-                if (!File.Exists(path)) { log.AppendLine($"SKIPPED - Missing: {name}"); continue; }
-                DriverInstallStatus.Text = $"Installing {i + 1}/{DriverInstallers.Length}: {name}";
-                using Process? process = Process.Start(new ProcessStartInfo { FileName = path, WorkingDirectory = driverFolder, UseShellExecute = true });
-                if (process == null) { log.AppendLine($"FAILED - Could not start: {name}"); continue; }
-                await process.WaitForExitAsync(); log.AppendLine($"FINISHED - {name} (Exit code: {process.ExitCode})");
-            }
-            DriversInfoBox.Text = log + Environment.NewLine + DriversInfoBox.Text; DriverInstallStatus.Text = "Driver installation sequence finished.";
-        }
+        InstallDriversButton.IsEnabled = false; var log = new StringBuilder();
+        try { for (int i = 0; i < DriverInstallers.Length; i++) { string name = DriverInstallers[i]; string path = Path.Combine(driverFolder, name); if (!File.Exists(path)) { log.AppendLine($"SKIPPED - Missing: {name}"); continue; } DriverInstallStatus.Text = $"Installing {i + 1}/{DriverInstallers.Length}: {name}"; using Process? process = Process.Start(new ProcessStartInfo { FileName = path, WorkingDirectory = driverFolder, UseShellExecute = true }); if (process == null) { log.AppendLine($"FAILED - Could not start: {name}"); continue; } await process.WaitForExitAsync(); log.AppendLine($"FINISHED - {name} (Exit code: {process.ExitCode})"); } DriversInfoBox.Text = log + Environment.NewLine + DriversInfoBox.Text; DriverInstallStatus.Text = "Driver installation sequence finished."; }
         catch (Exception ex) { log.AppendLine($"FAILED - {ex.Message}"); DriversInfoBox.Text = log + Environment.NewLine + DriversInfoBox.Text; }
         finally { InstallDriversButton.IsEnabled = true; }
     }
