@@ -117,28 +117,51 @@ public partial class MainWindow : Window
         {
             _report ??= SystemInfoService.GetReport();
 
-            // Back up only the currently installed Windows product key.
-            // Do not include the OEM key or any other metadata in the backup file.
-            string key = _report.ProductKey?.Trim() ?? string.Empty;
+            var choiceDialog = new KeyBackupChoiceWindow
+            {
+                Owner = this
+            };
+
+            if (choiceDialog.ShowDialog() != true || choiceDialog.SelectedChoice == KeyBackupChoiceWindow.KeyChoice.None)
+                return;
+
+            string keyType = choiceDialog.SelectedChoice == KeyBackupChoiceWindow.KeyChoice.Oem
+                ? "OEM"
+                : "Installed";
+
+            string key = choiceDialog.SelectedChoice == KeyBackupChoiceWindow.KeyChoice.Oem
+                ? _report.OemKey?.Trim() ?? string.Empty
+                : _report.ProductKey?.Trim() ?? string.Empty;
+
             if (!IsUsableProductKey(key))
             {
-                MessageBox.Show("WinKey could not find a full installed Windows product key to back up.", "No Product Key Found", MessageBoxButton.OK, MessageBoxImage.Warning);
+                MessageBox.Show(
+                    choiceDialog.SelectedChoice == KeyBackupChoiceWindow.KeyChoice.Oem
+                        ? "WinKey could not find a full OEM/UEFI Windows product key to back up."
+                        : "WinKey could not find a full installed Windows product key to back up.",
+                    "No Product Key Found",
+                    MessageBoxButton.OK,
+                    MessageBoxImage.Warning);
                 return;
             }
 
             var dialog = new SaveFileDialog
             {
+                Title = $"Save {keyType} Windows Product Key Backup",
                 Filter = "Windows key backup (*.txt)|*.txt|All files (*.*)|*.*",
-                FileName = $"WindowsKey-{DateTime.Now:yyyyMMdd-HHmmss}.txt",
+                FileName = $"WindowsKey-{keyType}-{DateTime.Now:yyyyMMdd-HHmmss}.txt",
                 DefaultExt = ".txt",
                 AddExtension = true
             };
 
             if (dialog.ShowDialog() != true) return;
 
-            // The file contains exactly one thing: the installed product key.
             File.WriteAllText(dialog.FileName, key, new UTF8Encoding(false));
-            MessageBox.Show("Installed Windows product key backup created successfully. The backup file contains only the product key.", "Backup Complete", MessageBoxButton.OK, MessageBoxImage.Information);
+            MessageBox.Show(
+                $"{keyType} Windows product key backup created successfully. The backup file contains only the selected product key.",
+                "Backup Complete",
+                MessageBoxButton.OK,
+                MessageBoxImage.Information);
         }
         catch (Exception ex)
         {
