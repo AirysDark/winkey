@@ -150,7 +150,7 @@ goto process ::# refreshed 22621 base with integrated 23H2 enablement package
 
 :choice-16
 set "VER=22621" & set "VID=11_22H2" & set "CB=22621.1702.230505-1222.ni_release_svc_refresh" & set "CT=2023/05/" & set "CC=2.0"
-set "CAB=https://download.microsoft.com/download/b/1/9/b19bd7fd-78c4-4f88-8c40-3e52aee143c2/products_win11_20230510.cab.cab"
+set "CAB=https://download.microsoft.com/download/b/1/9/b19bd7fd-78c4-4f88-8c40-3e52aee143c2/products_win11_20230510.cab"
 set "EXE=https://software-static.download.prss.microsoft.com/dbazure/988969d5-f34g-4e03-ac9d-1f9786c66749/mediacreationtool.exe"
 goto process ::# windows 11 22H2
 
@@ -162,7 +162,7 @@ goto process ::# windows 11 : usability and ui downgrade, and even more ChrEdge 
 
 :choice-14
 set "VER=19045" & set "VID=22H2" & set "CB=19045.2965.230505-1139.22h2_release_svc_refresh" & set "CT=2023/05/" & set "CC=1.4.1"
-set "CAB=https://download.microsoft.com/download/3/c/9/3c959fca-d288-46aa-b578-2a6c6c33137a/products_win10_20230510.cab.cab"
+set "CAB=https://download.microsoft.com/download/3/c/9/3c959fca-d288-46aa-b578-2a6c6c33137a/products_win10_20230510.cab"
 set "EXE=https://download.microsoft.com/download/9/e/a/9eac306f-d134-4609-9c58-35d1638c2363/MediaCreationTool22H2.exe"
 goto process ::# refreshed 19041 base with integrated 22H2 enablement package - current
 
