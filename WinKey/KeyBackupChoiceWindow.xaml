@@ -3,7 +3,8 @@
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
         Title="Choose Key to Back Up"
         Width="470"
-        Height="255"
+        Height="360"
+        MinHeight="360"
         ResizeMode="NoResize"
         WindowStartupLocation="CenterOwner"
         Background="#0B0F14"
@@ -21,29 +22,25 @@
                        Foreground="#9FB0C3" TextWrapping="Wrap" Margin="0,6,0,0"/>
         </StackPanel>
 
-        <StackPanel Grid.Row="1" Margin="0,18,0,18">
+        <StackPanel Grid.Row="1" Margin="0,16,0,16">
             <RadioButton x:Name="InstalledKeyOption"
                          Content="Installed Key"
                          GroupName="KeyType"
                          IsChecked="True"
-                         IsEnabled="True"
                          FontSize="16"
                          Padding="4"
-                         Margin="0,0,0,2"
                          Click="InstalledKeyOption_Click"/>
             <TextBlock Text="The product key currently installed in Windows."
-                       Foreground="#9FB0C3" Margin="32,0,0,12"/>
+                       Foreground="#9FB0C3" Margin="32,2,0,16"/>
 
             <RadioButton x:Name="OemKeyOption"
                          Content="OEM/UEFI Key"
                          GroupName="KeyType"
-                         IsEnabled="True"
                          FontSize="16"
                          Padding="4"
-                         Margin="0,0,0,2"
                          Click="OemKeyOption_Click"/>
-            <TextBlock Text="The product key embedded in the PC firmware. This option remains selectable whenever you choose it."
-                       Foreground="#9FB0C3" TextWrapping="Wrap" Margin="32,0,0,0"/>
+            <TextBlock Text="The product key embedded in the PC firmware."
+                       Foreground="#9FB0C3" Margin="32,2,0,0"/>
         </StackPanel>
 
         <StackPanel Grid.Row="2" Orientation="Horizontal" HorizontalAlignment="Right">
