@@ -1,32 +1,18 @@
 param(
+    [Parameter(Mandatory = $true)]
     [string]$ProductKey
 )
 
 $ErrorActionPreference = 'Stop'
 $slmgr = Join-Path $env:SystemRoot 'System32\slmgr.vbs'
 
-function Get-EmbeddedWindowsKey {
-    try {
-        $key = (Get-CimInstance -ClassName SoftwareLicensingService -ErrorAction Stop).OA3xOriginalProductKey
-        if ($key -and $key.Trim().Length -ge 25) {
-            return $key.Trim()
-        }
-    }
-    catch {
-    }
+# This script restores only the key explicitly supplied by WinKey.
+# It must never fall back to the current PC's embedded/OEM key.
+$ProductKey = $ProductKey.Trim()
 
-    return $null
-}
-
-if ([string]::IsNullOrWhiteSpace($ProductKey)) {
-    $ProductKey = Get-EmbeddedWindowsKey
-}
-
-if ([string]::IsNullOrWhiteSpace($ProductKey)) {
+if ($ProductKey -notmatch '^[A-Za-z0-9]{5}(-[A-Za-z0-9]{5}){4}$') {
     exit 2
 }
-
-$ProductKey = $ProductKey.Trim()
 
 try {
     & cscript.exe //NoLogo $slmgr /ipk $ProductKey | Out-Null
