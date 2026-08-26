@@ -21,8 +21,9 @@ public partial class MainWindow : Window
         "Intel Video Driver and Control Panel.exe", "Intel Chipset Installation Utility and Driver.exe", "Intel Management Engine Driver.exe",
         "Intel Serial IO Driver.exe", "Intel Dynamic Platform and Thermal Framework Driver.exe", "Conexant HD Audio Driver - Coffee Lake.exe",
         "HP USB-C Dock G5 - Firmware.exe", "HP USB-C Dock G5 - Audio Driver.exe", "HP Elite USB-C Docking Station Driver.exe",
-        "HP USB-C Mini Dock - Driver Pack.exe", "HP USB-C Universal Docking Station Driver.exe", "HP USB 3.0 Port Replicator and USB Travel Dock Driver.exe",
-        "Remote HP PC Hardware Diagnostics UEFI.exe", "HP Windows Hardware Diagnostics.exe", "HP PC Hardware Diagnostics UEFI.exe", "HP Firmware Pack (Q85).exe"
+        "HP USB-C Mini Dock - Driver Pack.exe", "HP USB-C Universal Docking Station Driver.exe", "HP USB-C Universal Docking Station Driver.exe",
+        "HP USB 3.0 Port Replicator and USB Travel Dock Driver.exe", "Remote HP PC Hardware Diagnostics UEFI.exe",
+        "HP Windows Hardware Diagnostics.exe", "HP PC Hardware Diagnostics UEFI.exe", "HP Firmware Pack (Q85).exe"
     ];
 
     private ComputerReport? _report;
@@ -65,8 +66,6 @@ public partial class MainWindow : Window
     {
         try
         {
-            // Run slmgr.vbs directly through the GUI script host. This shows the
-            // Windows Script Host activation dialog without creating a visible CMD window.
             string slmgrPath = Path.Combine(Environment.SystemDirectory, "slmgr.vbs");
 
             if (!File.Exists(slmgrPath))
@@ -84,8 +83,6 @@ public partial class MainWindow : Window
                 WindowStyle = ProcessWindowStyle.Hidden
             });
 
-            // The Windows Script Host dialog is displayed by wscript.exe. When the
-            // user clicks OK, that dialog and its process close automatically.
             ActivationStatusText.Text = "Activation status opened.";
         }
         catch (Exception ex)
@@ -113,21 +110,116 @@ public partial class MainWindow : Window
 
     private async void RestoreWindowsKey_Click(object sender, RoutedEventArgs e)
     {
-        var dialog = new OpenFileDialog { Filter = "WinKey Backup (*.winkeybackup;*.json)|*.winkeybackup;*.json|All files (*.*)|*.*" };
-        if (dialog.ShowDialog() != true) return;
         try
         {
-            WindowsKeyBackup? backup = JsonSerializer.Deserialize<WindowsKeyBackup>(File.ReadAllText(dialog.FileName), JsonOptions);
-            if (backup == null || backup.Format != "WinKey Windows Product Key Backup" || !IsUsableProductKey(backup.ProductKey)) throw new InvalidDataException("This is not a valid WinKey product key backup.");
-            if (MessageBox.Show($"Install this Windows product key?\n\nWindows edition in backup: {backup.WindowsEdition}\nComputer backed up from: {backup.ComputerName}", "Restore Windows Product Key", MessageBoxButton.YesNo, MessageBoxImage.Warning) != MessageBoxResult.Yes) return;
-            var psi = new ProcessStartInfo { FileName = "cscript.exe", Arguments = $"//NoLogo \"{Path.Combine(Environment.SystemDirectory, "slmgr.vbs")}\" /ipk {backup.ProductKey}", UseShellExecute = true, Verb = "runas" };
-            using Process? process = Process.Start(psi);
-            if (process == null) throw new InvalidOperationException("Could not start Windows activation.");
-            await process.WaitForExitAsync();
-            RefreshReport();
+            _report ??= SystemInfoService.GetReport();
+            string productKey = string.Empty;
+            string source = string.Empty;
+
+            // Prefer the original OEM key embedded in UEFI/BIOS.
+            if (IsUsableProductKey(_report.OemKey))
+            {
+                productKey = _report.OemKey;
+                source = "the original Windows OEM key embedded in this computer's UEFI/BIOS";
+            }
+            else
+            {
+                var dialog = new OpenFileDialog
+                {
+                    Filter = "WinKey Backup (*.winkeybackup;*.json)|*.winkeybackup;*.json|All files (*.*)|*.*"
+                };
+
+                if (dialog.ShowDialog() != true) return;
+
+                WindowsKeyBackup? backup = JsonSerializer.Deserialize<WindowsKeyBackup>(File.ReadAllText(dialog.FileName), JsonOptions);
+                if (backup == null || backup.Format != "WinKey Windows Product Key Backup" || !IsUsableProductKey(backup.ProductKey))
+                {
+                    throw new InvalidDataException("This is not a valid WinKey product key backup.");
+                }
+
+                productKey = backup.ProductKey;
+                source = $"the WinKey backup from {backup.ComputerName}";
+            }
+
+            if (MessageBox.Show(
+                $"Restore and activate Windows using {source}?\n\nWinKey will install the product key and then ask Windows to activate using Microsoft's normal activation service.",
+                "Restore & Activate Windows",
+                MessageBoxButton.YesNo,
+                MessageBoxImage.Question) != MessageBoxResult.Yes)
+            {
+                return;
+            }
+
+            ActivationStatusText.Text = "Restoring product key and activating Windows...";
+            Cursor = Cursors.Wait;
+
+            int exitCode = await RunRestoreScriptAsync(productKey);
+            Cursor = null;
+
+            switch (exitCode)
+            {
+                case 0:
+                    ActivationStatusText.Text = "Restore and activation completed. Review the Windows Script Host status dialog.";
+                    RefreshReport();
+                    break;
+                case 2:
+                    ActivationStatusText.Text = "No usable Windows product key was found.";
+                    MessageBox.Show("WinKey could not find a usable Windows product key.", "No Product Key Found", MessageBoxButton.OK, MessageBoxImage.Warning);
+                    break;
+                case 10:
+                    ActivationStatusText.Text = "Windows could not install the product key.";
+                    MessageBox.Show("Windows could not install the selected product key. Make sure it matches the installed Windows edition.", "Restore Failed", MessageBoxButton.OK, MessageBoxImage.Error);
+                    break;
+                case 11:
+                    ActivationStatusText.Text = "The key was restored, but Windows could not activate automatically.";
+                    MessageBox.Show("The product key was restored, but Windows could not activate automatically. Check your internet connection and Windows Activation settings.", "Activation Required", MessageBoxButton.OK, MessageBoxImage.Warning);
+                    RefreshReport();
+                    break;
+                default:
+                    ActivationStatusText.Text = "Restore failed.";
+                    MessageBox.Show("The Windows restore script failed. Exit code: " + exitCode, "Restore Failed", MessageBoxButton.OK, MessageBoxImage.Error);
+                    break;
+            }
         }
-        catch (System.ComponentModel.Win32Exception ex) when (ex.NativeErrorCode == 1223) { MessageBox.Show("Administrator permission was cancelled.", "Restore Cancelled", MessageBoxButton.OK, MessageBoxImage.Information); }
-        catch (Exception ex) { MessageBox.Show(ex.Message, "Restore Failed", MessageBoxButton.OK, MessageBoxImage.Error); }
+        catch (System.ComponentModel.Win32Exception ex) when (ex.NativeErrorCode == 1223)
+        {
+            Cursor = null;
+            ActivationStatusText.Text = "Restore cancelled.";
+            MessageBox.Show("Administrator permission was cancelled.", "Restore Cancelled", MessageBoxButton.OK, MessageBoxImage.Information);
+        }
+        catch (Exception ex)
+        {
+            Cursor = null;
+            ActivationStatusText.Text = "Restore failed.";
+            MessageBox.Show(ex.Message, "Restore Failed", MessageBoxButton.OK, MessageBoxImage.Error);
+        }
+    }
+
+    private static async Task<int> RunRestoreScriptAsync(string productKey)
+    {
+        string scriptPath = Path.Combine(AppContext.BaseDirectory, "Restore_Windows_Key.ps1");
+        if (!File.Exists(scriptPath))
+        {
+            throw new FileNotFoundException("Restore_Windows_Key.ps1 was not found next to WinKey.exe.", scriptPath);
+        }
+
+        string powershellPath = Path.Combine(Environment.SystemDirectory, "WindowsPowerShell", "v1.0", "powershell.exe");
+        if (!File.Exists(powershellPath)) powershellPath = "powershell.exe";
+
+        var psi = new ProcessStartInfo
+        {
+            FileName = powershellPath,
+            Arguments = $"-NoProfile -ExecutionPolicy Bypass -WindowStyle Hidden -File \"{scriptPath}\" -ProductKey \"{productKey}\"",
+            WorkingDirectory = AppContext.BaseDirectory,
+            UseShellExecute = true,
+            Verb = "runas",
+            WindowStyle = ProcessWindowStyle.Hidden
+        };
+
+        using Process? process = Process.Start(psi);
+        if (process == null) throw new InvalidOperationException("Could not start the Windows restore script.");
+        await process.WaitForExitAsync();
+        return process.ExitCode;
     }
 
     private static string SelectBackupKey(ComputerReport report) => IsUsableProductKey(report.ProductKey) ? report.ProductKey : report.OemKey;
