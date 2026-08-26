@@ -28,30 +28,15 @@ public partial class MainWindow : Window
         if (e.LeftButton == MouseButtonState.Pressed)
         {
             if (e.ClickCount == 2)
-            {
                 ToggleMaximizeRestore();
-            }
             else
-            {
                 DragMove();
-            }
         }
     }
 
-    private void Minimize_Click(object sender, RoutedEventArgs e)
-    {
-        WindowState = WindowState.Minimized;
-    }
-
-    private void MaximizeRestore_Click(object sender, RoutedEventArgs e)
-    {
-        ToggleMaximizeRestore();
-    }
-
-    private void Close_Click(object sender, RoutedEventArgs e)
-    {
-        Close();
-    }
+    private void Minimize_Click(object sender, RoutedEventArgs e) => WindowState = WindowState.Minimized;
+    private void MaximizeRestore_Click(object sender, RoutedEventArgs e) => ToggleMaximizeRestore();
+    private void Close_Click(object sender, RoutedEventArgs e) => Close();
 
     private void ToggleMaximizeRestore()
     {
@@ -67,20 +52,17 @@ public partial class MainWindow : Window
         try
         {
             Cursor = Cursors.Wait;
-
             _report = SystemInfoService.GetReport();
+
             WindowsInfoBox.Text = _report.WindowsSection;
             HardwareInfoBox.Text = _report.HardwareSection;
+            DriversInfoBox.Text = _report.DriversSection;
             NetworkInfoBox.Text = _report.NetworkSection;
             ReportBox.Text = _report.FullText;
         }
         catch (Exception ex)
         {
-            MessageBox.Show(
-                ex.ToString(),
-                "WinKey error",
-                MessageBoxButton.OK,
-                MessageBoxImage.Error);
+            MessageBox.Show(ex.ToString(), "WinKey error", MessageBoxButton.OK, MessageBoxImage.Error);
         }
         finally
         {
