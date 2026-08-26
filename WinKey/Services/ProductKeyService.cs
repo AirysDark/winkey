@@ -11,21 +11,8 @@ public static class ProductKeyService
     {
         try
         {
-            ProductKeyDecodeResult result = DecodeInstalledProductKeyCandidates();
-            string activePartial = GetActiveWindowsPartialProductKey();
-
-            if (!string.IsNullOrWhiteSpace(activePartial))
-            {
-                if (result.ModernKeyValid && result.ModernKey.EndsWith(activePartial, StringComparison.OrdinalIgnoreCase))
-                    return result.ModernKey;
-
-                if (result.LegacyKeyValid && result.LegacyKey.EndsWith(activePartial, StringComparison.OrdinalIgnoreCase))
-                    return result.LegacyKey;
-            }
-
-            return result.ModernKeyValid ? result.ModernKey
-                : result.LegacyKeyValid ? result.LegacyKey
-                : "Not recoverable";
+            ProductKeyDecodeResult result = DecodeInstalledProductKey();
+            return result.InstalledKeyValid ? result.InstalledKey : "Not recoverable";
         }
         catch
         {
@@ -33,27 +20,26 @@ public static class ProductKeyService
         }
     }
 
-    // Returns both decoder candidates without silently replacing either result.
-    // This is used for debugging and lets the UI/backup flow explicitly choose
-    // which decoder output should be displayed or saved.
-    public static ProductKeyDecodeResult DecodeInstalledProductKeyCandidates()
+    // Reads the installed Windows DigitalProductId and returns the single
+    // canonical Windows 8/10/11 decoded product key. No modern/legacy choice,
+    // no licence-based substitution and no UI-derived value is used here.
+    public static ProductKeyDecodeResult DecodeInstalledProductKey()
     {
         using var key = Registry.LocalMachine.OpenSubKey(@"SOFTWARE\Microsoft\Windows NT\CurrentVersion");
         if (key?.GetValue("DigitalProductId") is not byte[] digitalProductId)
-            return new ProductKeyDecodeResult(string.Empty, string.Empty, false, false);
+            return new ProductKeyDecodeResult(string.Empty, false);
 
         return ProductKeyDecoder.Decode(digitalProductId);
     }
 
-    // Backup must save this raw decoder output, not a displayed or cached key.
-    // The modern candidate is intentionally returned directly so there is no
-    // licence-verification or UI substitution in this path.
+    // Backup uses this exact decoder output. It does not re-select, compare or
+    // replace the decoded key with the displayed report key.
     public static string GetDecodedInstalledProductKey()
     {
         try
         {
-            ProductKeyDecodeResult result = DecodeInstalledProductKeyCandidates();
-            return result.ModernKeyValid ? result.ModernKey : "Not recoverable";
+            ProductKeyDecodeResult result = DecodeInstalledProductKey();
+            return result.InstalledKeyValid ? result.InstalledKey : "Not recoverable";
         }
         catch
         {
@@ -92,9 +78,7 @@ public static class ProductKeyService
 
                 if (applicationId.Equals(WindowsLicensingApplicationId, StringComparison.OrdinalIgnoreCase) &&
                     licenseStatus == 1 && partialKey.Length == 5)
-                {
                     return partialKey;
-                }
             }
         }
         catch { }
