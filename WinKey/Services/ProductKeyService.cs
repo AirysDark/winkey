@@ -10,10 +10,15 @@ public static class ProductKeyService
         try
         {
             using var key = Registry.LocalMachine.OpenSubKey(@"SOFTWARE\Microsoft\Windows NT\CurrentVersion");
-            if (key?.GetValue("DigitalProductId") is not byte[] digitalProductId) return "Not found";
+            if (key?.GetValue("DigitalProductId") is not byte[] digitalProductId)
+                return "Not found";
+
             return DecodeProductKey(digitalProductId);
         }
-        catch { return "Unavailable"; }
+        catch
+        {
+            return "Unavailable";
+        }
     }
 
     public static string GetOemProductKey()
@@ -24,10 +29,14 @@ public static class ProductKeyService
             foreach (ManagementObject item in searcher.Get())
             {
                 var value = item["OA3xOriginalProductKey"]?.ToString();
-                if (!string.IsNullOrWhiteSpace(value)) return value;
+                if (!string.IsNullOrWhiteSpace(value))
+                    return value.Trim();
             }
         }
-        catch { }
+        catch
+        {
+        }
+
         return "No embedded OEM/UEFI key found";
     }
 
@@ -35,30 +44,49 @@ public static class ProductKeyService
     {
         const string chars = "BCDFGHJKMPQRTVWXY2346789";
         const int keyStart = 52;
-        var key = digitalProductId.Skip(keyStart).Take(15).ToArray();
+        const int keyLength = 15;
+
+        if (digitalProductId.Length < keyStart + keyLength || digitalProductId.Length <= 66)
+            return "Not found";
+
+        var keyBytes = digitalProductId.Skip(keyStart).Take(keyLength).ToArray();
         bool isWin8OrNewer = ((digitalProductId[66] / 6) & 1) != 0;
-        if (isWin8OrNewer) digitalProductId[66] = (byte)((digitalProductId[66] & 0xF7) | ((2 & 4) * 4));
+
+        if (isWin8OrNewer)
+            digitalProductId[66] = (byte)((digitalProductId[66] & 0xF7) | ((2 & 4) * 4));
+
+        var decodedCharacters = new char[25];
         int last = 0;
-        var result = new char[29];
-        for (int i = 28; i >= 0; i--)
+
+        for (int i = 24; i >= 0; i--)
         {
-            if ((i + 1) % 6 == 0) { result[i] = '-'; continue; }
             int current = 0;
+
             for (int j = 14; j >= 0; j--)
             {
-                current = current * 256 ^ key[j];
-                key[j] = (byte)(current / 24);
+                current = current * 256 + keyBytes[j];
+                keyBytes[j] = (byte)(current / 24);
                 current %= 24;
-                last = current;
             }
-            result[i] = chars[current];
+
+            decodedCharacters[i] = chars[current];
+            last = current;
         }
-        var decoded = new string(result);
+
+        string decoded = new(decodedCharacters);
+
+        // Windows 8 and newer use the special "N" insertion algorithm.
+        // Do this before adding hyphens; manipulating an already formatted
+        // 29-character key can corrupt the five-character groups.
         if (isWin8OrNewer)
         {
-            int insert = last;
-            decoded = decoded.Remove(0, 1).Insert(insert, "N");
+            decoded = decoded.Remove(0, 1).Insert(Math.Clamp(last, 0, 24), "N");
         }
-        return decoded;
+
+        if (decoded.Length != 25)
+            return "Not found";
+
+        return string.Join("-", Enumerable.Range(0, 5)
+            .Select(group => decoded.Substring(group * 5, 5)));
     }
 }
