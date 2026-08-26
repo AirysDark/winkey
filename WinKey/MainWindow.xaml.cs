@@ -2,6 +2,7 @@ using System.Diagnostics;
 using System.IO;
 using System.Text;
 using System.Text.Json;
+using System.Text.RegularExpressions;
 using System.Windows;
 using System.Windows.Input;
 using Microsoft.Win32;
@@ -115,28 +116,44 @@ public partial class MainWindow : Window
         try
         {
             _report ??= SystemInfoService.GetReport();
-            string key = SelectBackupKey(_report);
-            if (!IsUsableProductKey(key)) { MessageBox.Show("WinKey could not find a full Windows product key to back up.", "No Product Key Found", MessageBoxButton.OK, MessageBoxImage.Warning); return; }
-            var backup = new WindowsKeyBackup("WinKey Windows Product Key Backup", 1, DateTime.Now.ToString("O"), Environment.MachineName, _report.WindowsEdition, _report.WindowsVersion, _report.WindowsBuild, key, _report.OemKey);
-            var dialog = new SaveFileDialog { Filter = "WinKey Backup (*.winkeybackup)|*.winkeybackup|JSON files (*.json)|*.json", FileName = $"WindowsKey-{DateTime.Now:yyyyMMdd-HHmmss}.winkeybackup" };
+
+            // Back up only the currently installed Windows product key.
+            // Do not include the OEM key or any other metadata in the backup file.
+            string key = _report.ProductKey?.Trim() ?? string.Empty;
+            if (!IsUsableProductKey(key))
+            {
+                MessageBox.Show("WinKey could not find a full installed Windows product key to back up.", "No Product Key Found", MessageBoxButton.OK, MessageBoxImage.Warning);
+                return;
+            }
+
+            var dialog = new SaveFileDialog
+            {
+                Filter = "Windows key backup (*.txt)|*.txt|All files (*.*)|*.*",
+                FileName = $"WindowsKey-{DateTime.Now:yyyyMMdd-HHmmss}.txt",
+                DefaultExt = ".txt",
+                AddExtension = true
+            };
+
             if (dialog.ShowDialog() != true) return;
-            File.WriteAllText(dialog.FileName, JsonSerializer.Serialize(backup, JsonOptions), Encoding.UTF8);
-            MessageBox.Show("Windows product key backup created successfully. Keep this file somewhere safe.", "Backup Complete", MessageBoxButton.OK, MessageBoxImage.Information);
+
+            // The file contains exactly one thing: the installed product key.
+            File.WriteAllText(dialog.FileName, key, new UTF8Encoding(false));
+            MessageBox.Show("Installed Windows product key backup created successfully. The backup file contains only the product key.", "Backup Complete", MessageBoxButton.OK, MessageBoxImage.Information);
         }
-        catch (Exception ex) { MessageBox.Show(ex.Message, "Backup Failed", MessageBoxButton.OK, MessageBoxImage.Error); }
+        catch (Exception ex)
+        {
+            MessageBox.Show(ex.Message, "Backup Failed", MessageBoxButton.OK, MessageBoxImage.Error);
+        }
     }
 
     private async void RestoreWindowsKey_Click(object sender, RoutedEventArgs e)
     {
         try
         {
-            // Always ask the user to select the backup file. Do not automatically use
-            // the OEM key from the current computer, because Restore Key is intended
-            // to restore the key stored in a WinKey backup selected by the user.
             var dialog = new OpenFileDialog
             {
-                Title = "Select WinKey Product Key Backup",
-                Filter = "WinKey Backup (*.winkeybackup)|*.winkeybackup|JSON files (*.json)|*.json|All files (*.*)|*.*",
+                Title = "Select Windows Product Key Backup",
+                Filter = "Windows key backup (*.txt)|*.txt|All files (*.*)|*.*",
                 CheckFileExists = true,
                 Multiselect = false
             };
@@ -147,16 +164,16 @@ public partial class MainWindow : Window
                 return;
             }
 
-            WindowsKeyBackup? backup = JsonSerializer.Deserialize<WindowsKeyBackup>(File.ReadAllText(dialog.FileName), JsonOptions);
-            if (backup == null || backup.Format != "WinKey Windows Product Key Backup" || !IsUsableProductKey(backup.ProductKey))
-                throw new InvalidDataException("This is not a valid WinKey product key backup.");
+            string fileContents = File.ReadAllText(dialog.FileName, Encoding.UTF8).Trim();
+            string productKey = ExtractProductKey(fileContents);
+            if (!IsUsableProductKey(productKey))
+                throw new InvalidDataException("The selected backup does not contain a usable Windows product key. The backup file must contain the 25-character product key.");
 
-            string productKey = backup.ProductKey.Trim();
             string source = Path.GetFileName(dialog.FileName);
 
             if (MessageBox.Show(
                     $"Restore the Windows product key from:\n\n{source}\n\n" +
-                    $"Backup edition: {backup.WindowsEdition}\n\n" +
+                    $"Product key: {productKey}\n\n" +
                     "WinKey will install the selected product key and then ask Windows to activate using Microsoft's normal activation service.",
                     "Restore & Activate Windows",
                     MessageBoxButton.YesNo,
@@ -210,6 +227,14 @@ public partial class MainWindow : Window
         }
     }
 
+    private static string ExtractProductKey(string text)
+    {
+        if (string.IsNullOrWhiteSpace(text)) return string.Empty;
+
+        Match match = Regex.Match(text, @"(?i)\b[A-Z0-9]{5}(?:-[A-Z0-9]{5}){4}\b");
+        return match.Success ? match.Value.ToUpperInvariant() : string.Empty;
+    }
+
     private static async Task<int> RunRestoreScriptAsync(string productKey)
     {
         string scriptPath = Path.Combine(AppContext.BaseDirectory, "Restore_Windows_Key.ps1");
@@ -223,8 +248,7 @@ public partial class MainWindow : Window
         return process.ExitCode;
     }
 
-    private static string SelectBackupKey(ComputerReport report) => IsUsableProductKey(report.ProductKey) ? report.ProductKey : report.OemKey;
-    private static bool IsUsableProductKey(string? key) => !string.IsNullOrWhiteSpace(key) && key != "Unknown" && key != "Unavailable" && key.Length >= 25;
+    private static bool IsUsableProductKey(string? key) => !string.IsNullOrWhiteSpace(key) && Regex.IsMatch(key.Trim(), @"(?i)^[A-Z0-9]{5}(?:-[A-Z0-9]{5}){4}$");
 
     private async void InstallDrivers_Click(object sender, RoutedEventArgs e)
     {
@@ -255,6 +279,4 @@ public partial class MainWindow : Window
     private void CopyAll_Click(object sender, RoutedEventArgs e) { if (_report != null) Clipboard.SetText(_report.FullText); }
     private void ExportTxt_Click(object sender, RoutedEventArgs e) { if (_report == null) return; var dialog = new SaveFileDialog { Filter = "Text report (*.txt)|*.txt", FileName = $"WinKey-{DateTime.Now:yyyyMMdd-HHmmss}.txt" }; if (dialog.ShowDialog() == true) File.WriteAllText(dialog.FileName, _report.FullText, Encoding.UTF8); }
     private void ExportJson_Click(object sender, RoutedEventArgs e) { if (_report == null) return; var dialog = new SaveFileDialog { Filter = "JSON report (*.json)|*.json", FileName = $"WinKey-{DateTime.Now:yyyyMMdd-HHmmss}.json" }; if (dialog.ShowDialog() == true) File.WriteAllText(dialog.FileName, JsonSerializer.Serialize(_report, JsonOptions), Encoding.UTF8); }
-
-    private sealed record WindowsKeyBackup(string Format, int FormatVersion, string CreatedAt, string ComputerName, string WindowsEdition, string WindowsVersion, string WindowsBuild, string ProductKey, string OemProductKey);
 }
