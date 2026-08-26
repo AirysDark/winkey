@@ -90,14 +90,14 @@ public partial class MainWindow : Window
     {
         try
         {
-            string scriptPath = Path.Combine(AppContext.BaseDirectory, "MediaCreationTool.bat");
+            string scriptPath = Path.Combine(AppContext.BaseDirectory, "WinKey_MediaCreationLauncher.cmd");
             if (!File.Exists(scriptPath))
             {
-                throw new FileNotFoundException("MediaCreationTool.bat was not found next to WinKey.exe. Rebuild or republish WinKey so the bundled media creation tool is included.", scriptPath);
+                throw new FileNotFoundException("WinKey_MediaCreationLauncher.cmd was not found next to WinKey.exe. Rebuild or republish WinKey so the bundled media creation launcher is included.", scriptPath);
             }
 
             MessageBox.Show(
-                "WinKey will launch the Microsoft Media Creation Tool in manual mode. You will choose the Windows version, edition, language and architecture. If you choose USB installation media, Microsoft Media Creation Tool will ask you to select the exact USB drive. No USB drive is selected automatically.\n\nIf a version such as Windows 10 22H2 fails, the command window will now stay open and show the error instead of closing immediately.",
+                "WinKey will launch the Microsoft Media Creation Tool in manual mode. You will choose the Windows version, edition, language and architecture. If you choose USB installation media, Microsoft Media Creation Tool will ask you to select the exact USB drive. No USB drive is selected automatically.\n\nThe WinKey launcher also applies the corrected Windows 10 22H2 catalog and Media Creation Tool settings before starting the tool. The command window will stay open and show any error instead of closing immediately.",
                 "Create Windows Installation Media",
                 MessageBoxButton.OK,
                 MessageBoxImage.Information);
