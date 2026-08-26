@@ -26,17 +26,24 @@
                          Content="Installed Key"
                          GroupName="KeyType"
                          IsChecked="True"
+                         IsEnabled="True"
                          FontSize="16"
-                         Margin="0,0,0,10"/>
+                         Padding="4"
+                         Margin="0,0,0,2"
+                         Click="InstalledKeyOption_Click"/>
             <TextBlock Text="The product key currently installed in Windows."
-                       Foreground="#9FB0C3" Margin="28,-7,0,14"/>
+                       Foreground="#9FB0C3" Margin="32,0,0,12"/>
 
             <RadioButton x:Name="OemKeyOption"
-                         Content="OEM Key"
+                         Content="OEM/UEFI Key"
                          GroupName="KeyType"
-                         FontSize="16"/>
-            <TextBlock Text="The product key embedded in the PC firmware, if available."
-                       Foreground="#9FB0C3" Margin="28,-7,0,0"/>
+                         IsEnabled="True"
+                         FontSize="16"
+                         Padding="4"
+                         Margin="0,0,0,2"
+                         Click="OemKeyOption_Click"/>
+            <TextBlock Text="The product key embedded in the PC firmware. This option remains selectable whenever you choose it."
+                       Foreground="#9FB0C3" TextWrapping="Wrap" Margin="32,0,0,0"/>
         </StackPanel>
 
         <StackPanel Grid.Row="2" Orientation="Horizontal" HorizontalAlignment="Right">
